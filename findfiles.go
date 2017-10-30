@@ -13,6 +13,7 @@ import (
 )
 
 // FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
+// The list of files returned is sorted by mtime.
 func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataFile) {
 	eligibleFiles := make([]*LocalDataFile, 0)
 	eligibleTime := time.Now().Add(-minFileAge)
@@ -20,6 +21,7 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 
 	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			// Any error terminates the walk.
 			return err
 		}
 		if info.IsDir() {
@@ -27,9 +29,9 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 		}
 		if eligibleTime.After(info.ModTime()) {
 			localDataFile := &LocalDataFile {
-				fullRelativeName: path,
-				info: info,
-				cachedSize: info.Size(),
+				FullRelativeName: path,
+				Info: info,
+				CachedSize: info.Size(),
 			}
 			eligibleFiles = append(eligibleFiles, localDataFile)
 			totalEligibleSize += info.Size()
@@ -45,7 +47,7 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 	log.Printf("Total file count = %d", len(eligibleFiles))
 	// Sort the files by mtime
 	sort.Slice(eligibleFiles, func(i, j int) bool {
-		return eligibleFiles[i].info.ModTime().Before(eligibleFiles[j].info.ModTime())
+		return eligibleFiles[i].Info.ModTime().Before(eligibleFiles[j].Info.ModTime())
 	})
 	return nil, eligibleFiles
 }
