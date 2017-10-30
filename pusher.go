@@ -1,64 +1,67 @@
-package main
+package pusher
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"flag"
-	//"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
-	//"sort"
 	"time"
-)
-
-
-var (
-	directory             = flag.String("directory", "/var/spool/ndt_iupui", "The directory containing the files to upload.")
-	upload_server         = flag.String("upload_server", "https://uploader-mlab-oti.appspot.com", "What server to use to get the upload URL")
-	data_buffer_threshold = flag.Int("data_buffer_threshold", 30000000, "The number of bytes to buffer before uploading")
-	min_file_age          = flag.Duration("min_file_age", time.Duration(2)*time.Hour, "The amount of time that must have elapsed since the last edit of a file must be before it is eligible for upload")
 )
 
 
 type LocalDataFile struct {
 	full_relative_name string
 	info os.FileInfo
+	cached_size int64
 }
 
 
-func findFiles() (error, []*LocalDataFile) {
-	eligible_files := make([]*LocalDataFile, 0)
-	eligible_time := time.Now().Add(-(*min_file_age))
-	total_eligible_size := int64(0)
+func StartUploader(server string, data_buffer_threshold int64) chan *LocalDataFile {
+	channel := make(chan *LocalDataFile)
+	go bufferTarAndUpload(server, data_buffer_threshold, channel)
+	return channel
+}
 
-	err := filepath.Walk(*directory, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
+
+func bufferTarAndUpload(server string, data_buffer_threshold int64, channel chan *LocalDataFile) {
+	files_discovered := make(map[string]*LocalDataFile)
+	total_size := int64(0)
+	var earliest_mtime time.Time
+	for {
+		file := <-channel
+		if earliest_mtime.IsZero()  {
+			earliest_mtime = file.info.ModTime()
 		}
-		if eligible_time.After(info.ModTime()) {
-			local_data_file := &LocalDataFile {
-				full_relative_name: path,
-				info: info,
+		older_file, exists := files_discovered[file.full_relative_name]
+		if exists {
+			total_size -= older_file.cached_size
+		}
+		files_discovered[file.full_relative_name] = file
+		total_size += file.cached_size
+
+		f_year, f_month, f_day := file.info.ModTime().Date()
+		e_year, e_month, e_day := earliest_mtime.Date()
+		if total_size > data_buffer_threshold || !(e_year == f_year && e_month == f_month && e_day == f_day) {
+			var min_mtime time.Time
+			files := make([]*LocalDataFile, len(files_discovered))
+			for _, local_file := range files_discovered {
+				files = append(files, local_file)
+				if min_mtime.IsZero() || file.info.ModTime().Before(min_mtime) {
+					min_mtime = file.info.ModTime()
+				}
 			}
-			eligible_files = append(eligible_files, local_data_file)
-			total_eligible_size += info.Size()
+			tarAndUpload(files, min_mtime, server)
 		}
-		return nil
-	})
+	}
+}
 
-        if err != nil {
-		log.Printf("Could not walk %s (err=%s)", *directory, err)
-		return err, eligible_files
-	}
-	log.Printf("Total file sizes = %d", total_eligible_size)
-        if total_eligible_size > int64(*data_buffer_threshold) {
-		return nil, eligible_files
-	} else {
-		return nil, make([]*LocalDataFile, 0)
-	}
+
+func tarAndUpload(files []*LocalDataFile, min_mtime time.Time, server string) error {
+	err, buff := createTarfile(files)
+	log.Printf("Faking uploading %d files using %s with the time %s and %d bytes", len(files), min_mtime, server, buff.Len())
+	return err
 }
 
 
@@ -84,23 +87,4 @@ func createTarfile(files []*LocalDataFile) (error, *bytes.Buffer) {
 		}
 	}
 	return nil, buffer
-}
-
-
-func findUploadAndDelete() error {
-        err, files := findFiles()
-	if err != nil {
-		return err
-	}
-	err, tarfile_contents := createTarfile(files)
-	log.Printf("%s", tarfile_contents)
-	// Upload?
-	// Delete?
-	return nil
-}
-
-
-func main() {
-	flag.Parse()
-	findUploadAndDelete()
 }
