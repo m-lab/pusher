@@ -1,6 +1,6 @@
 package pusher
 
-// Thise function has been placed in its own file because, in the fullness of
+// This function has been placed in its own file because, in the fullness of
 // time, we expect Pusher to become a library used by the inotify exporter, and
 // for this function to therefore become unused.
 
