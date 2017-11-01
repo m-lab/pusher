@@ -34,9 +34,8 @@ type LocalDataFile struct {
 // The filename of any uploaded tar file will be based on the min mtime of the
 // files it contains.  To prevent the possibility of name collisions, send
 // files down the channel in ascending order by mtime.  To terminate the
-// Uploader, send a nil down the channel as a signal final value which will
-// cause any buffered data to be sent to the server and then the channel to be
-// closed.
+// Uploader, close the channel.  The close will cause any remaining buffered
+// data to be sent to the server.
 func StartUploader(server string, dataBufferThreshold int64) chan *LocalDataFile {
 	deleteChannel := make(chan *string)
 	go removeAll(deleteChannel)
@@ -84,8 +83,8 @@ func bufferFiles(dataBufferThreshold int64, inputChannel chan *LocalDataFile, ou
 	var earliestMtime, previousMtime time.Time
 	for file := range inputChannel {
 		if file == nil {
-			log.Printf("Received a nil LocalDataFile: exiting")
-			return
+			log.Printf("Received a nil LocalDataFile: ignoring")
+			continue
 		}
 		fileMtime := file.Info.ModTime()
 		if earliestMtime.IsZero() {
