@@ -14,7 +14,7 @@ var (
 	directory     = flag.String("directory", "/var/spool/test", "The directory to watch for files.")
 	project       = flag.String("project", "mlab-sandbox", "The GCP project for uploading")
 	bucket        = flag.String("bucket", "dropbox-mlab-sandbox", "The GCP bucket for uploading")
-	minFileAge    = flag.Duration("min_file_age", time.Duration(10*time.Minute), "The minimum age a file must be before we consider it ready for uploading.")
+	ageThreshold    = flag.Duration("age_threshold", time.Duration(2) * time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold = bytecount.ByteCount(20 * bytecount.Megabyte)
 )
 
@@ -29,8 +29,7 @@ func main() {
 		Bucket: *bucket,
 		Creds: "TODO",
 		TarfileSizeThreshold: sizeThreshold,
-		MinFileUploadAge: *minFileAge,
-		FileGroupHashFn: pusher.TrivialHash,
+		FileAgeThreshold: *ageThreshold,
 	}
 	pusherChannel := pusher.New(config)
 	interval := time.Duration(10) * time.Minute
