@@ -1,8 +1,14 @@
 language: go
 
 before_script:
-- go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
+- go get github.com/wadey/gocovmerge
 
 script:
-- $GOPATH/bin/goveralls -service=travis-ci -v
+- for module in $(find * -type d  | grep -v git-hooks); do
+  go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/pusher/$module ;
+  done
+# This assumes we never have a module named merged_test_coverage. A good
+# assumption, but one we should note.
+- $HOME/gopath/bin/gocovmerge *.cov > merged_test_coverage.cov
+- $HOME/gopath/bin/goveralls -coverprofile=merged_test_coverage.cov -service=travis-ci
