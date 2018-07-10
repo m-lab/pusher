@@ -27,6 +27,7 @@ func main() {
 	config := pusher.Config{
 		Project:              *project,
 		Bucket:               *bucket,
+		Directory:            *directory,
 		TarfileSizeThreshold: sizeThreshold,
 		FileAgeThreshold:     *ageThreshold,
 	}

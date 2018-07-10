@@ -10,9 +10,9 @@ import (
 
 // Config holds all config information needed for a new pusher channel.
 type Config struct {
-	Project, Bucket      string
-	TarfileSizeThreshold bytecount.ByteCount
-	FileAgeThreshold     time.Duration
+	Project, Bucket, Directory string
+	TarfileSizeThreshold       bytecount.ByteCount
+	FileAgeThreshold           time.Duration
 }
 
 // New creates a new channel to which files for upload should be sent, and also
@@ -20,7 +20,7 @@ type Config struct {
 func New(config Config) chan *fileinfo.LocalDataFile {
 	// Set up the processing chain.
 	uploader := uploader.New(config.Project, config.Bucket)
-	tarCache := tarcache.New(config.TarfileSizeThreshold, config.FileAgeThreshold, uploader)
+	tarCache := tarcache.New(config.Directory, config.TarfileSizeThreshold, config.FileAgeThreshold, uploader)
 
 	// By giving this channel a large buffer, we attempt to decouple file
 	// discovery event response times from any file processing times.
