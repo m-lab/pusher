@@ -6,7 +6,7 @@ before_script:
 
 script:
 - for module in $(find * -type d  | grep -v git-hooks); do
-  go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/epoxy/$module ;
+  go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/pusher/$module ;
   done
 # This assumes we never have a module named merged_test_coverage. A good
 # assumption, but one we should note.
