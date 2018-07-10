@@ -28,10 +28,10 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			localDataFile := &LocalDataFile {
+			localDataFile := &LocalDataFile{
 				FullRelativeName: path,
-				Info: info,
-				CachedSize: info.Size(),
+				Info:             info,
+				CachedSize:       info.Size(),
 			}
 			eligibleFiles = append(eligibleFiles, localDataFile)
 			totalEligibleSize += info.Size()
@@ -39,7 +39,7 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 		return nil
 	})
 
-        if err != nil {
+	if err != nil {
 		log.Printf("Could not walk %s (err=%s)", directory, err)
 		return err, eligibleFiles
 	}
@@ -51,5 +51,3 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 	})
 	return nil, eligibleFiles
 }
-
-
