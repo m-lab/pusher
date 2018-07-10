@@ -5,7 +5,6 @@ package finder
 // approach will not be needed and this code will be deleted.
 
 import (
-	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/fileinfo"
 	"log"
 	"os"
@@ -33,7 +32,6 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDat
 			localDataFile := &fileinfo.LocalDataFile{
 				AbsoluteFileName: path,
 				Info:             info,
-				CachedSize:       bytecount.ByteCount(info.Size()),
 			}
 			eligibleFiles = append(eligibleFiles, localDataFile)
 			totalEligibleSize += info.Size()
