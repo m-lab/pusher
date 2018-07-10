@@ -41,8 +41,7 @@ func TestByteParsing(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	b := ByteCount(1)
-	if b.String() != "1" {
+	if ByteCount(1).String() != "1" {
 		t.Error("1 byte doesn't turn into the string 1")
 	}
 }
