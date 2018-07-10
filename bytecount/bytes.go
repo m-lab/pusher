@@ -1,7 +1,11 @@
+// Package bytecount provides a single datatype ByteCount, designed to track
+// counts of bytes, as well as some helper constants.  It also provides all the
+// necessary functions to allow a ByteCount to be specified as a command-line
+// argument, which should allow command-line arguments like
+// `--cache-size=20MB`.
 package bytecount
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -37,19 +41,17 @@ func (b *ByteCount) String() string {
 func (b *ByteCount) Set(s string) error {
 	bytesRegexp := regexp.MustCompile(`^(?P<quantity>[0-9]+)(?P<units>[KMG]?B?)?$`)
 	if !bytesRegexp.MatchString(s) {
-		return errors.New("No match for " + s)
+		return fmt.Errorf("Invalid size format: %q", s)
 	}
 	for _, submatches := range bytesRegexp.FindAllStringSubmatchIndex(s, -1) {
-		quantityBytes := []byte{}
-		quantityBytes = bytesRegexp.ExpandString(quantityBytes, "$quantity", s, submatches)
+		quantityBytes := bytesRegexp.ExpandString([]byte{}, "$quantity", s, submatches)
 		quantityInt, err := strconv.ParseInt(string(quantityBytes), 10, 64)
 		if err != nil {
 			return err
 		}
 		quantity := ByteCount(quantityInt)
-		unitsBytes := []byte{}
-		unitsBytes = bytesRegexp.ExpandString(unitsBytes, "$units", s, submatches)
-		units := ByteCount(1)
+		unitsBytes := bytesRegexp.ExpandString([]byte{}, "$units", s, submatches)
+		units := Byte
 		switch string(unitsBytes) {
 		case "B", "":
 			units = Byte

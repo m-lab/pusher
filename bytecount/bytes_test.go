@@ -7,26 +7,28 @@ import (
 
 func TestByteParsing(t *testing.T) {
 	// Check successes
-	type Pair struct {
-		in  string
+	tests := []struct {
+		in string
 		out ByteCount
+	}{
+		{in: "1KB", out: ByteCount(1000)},
+		{in: "1B", out: ByteCount(1)},
+		{in: "2KB", out: ByteCount(2000)},
+		{in: "3MB", out: ByteCount(3000000)},
+		{in: "4GB", out: ByteCount(4000000000)},
+		{in: "5K", out: ByteCount(5000)},
+		{in: "6M", out: ByteCount(6000000)},
+		{in: "7G", out: ByteCount(7000000000)},
+		{in: "1000", out: ByteCount(1000)},
+		{in: "2", out: ByteCount(2)},
 	}
-	for _, pair := range []Pair{Pair{in: "1KB", out: ByteCount(1000)},
-		Pair{in: "1B", out: ByteCount(1)},
-		Pair{in: "2KB", out: ByteCount(2000)},
-		Pair{in: "3MB", out: ByteCount(3000000)},
-		Pair{in: "4GB", out: ByteCount(4000000000)},
-		Pair{in: "5K", out: ByteCount(5000)},
-		Pair{in: "6M", out: ByteCount(6000000)},
-		Pair{in: "7G", out: ByteCount(7000000000)},
-		Pair{in: "1000", out: ByteCount(1000)},
-		Pair{in: "2", out: ByteCount(2)}} {
+	for _, test := range tests {
 		b := ByteCount(0)
-		if err := b.Set(pair.in); err != nil {
+		if err := b.Set(test.in); err != nil {
 			t.Error(err)
 		}
-		if b.Get().(ByteCount) != pair.out {
-			t.Errorf("Bad parse of %s (%d bytes != %d bytes)", pair.in, pair.out, b.Get().(ByteCount))
+		if b.Get().(ByteCount) != test.out {
+			t.Errorf("Bad parse of %s (%d bytes != %d bytes)", test.in, test.out, b.Get().(ByteCount))
 		}
 	}
 	// Check failures
