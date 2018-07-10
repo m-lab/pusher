@@ -13,7 +13,7 @@ type ByteCount int64
 
 // Some constants to make working with ByteCounts easier.
 const (
-	Byte	 ByteCount = 1
+	Byte     ByteCount = 1
 	Kilobyte           = 1000 * Byte
 	Megabyte           = 1000 * Kilobyte
 	Gigabyte           = 1000 * Megabyte
