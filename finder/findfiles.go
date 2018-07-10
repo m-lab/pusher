@@ -1,10 +1,11 @@
-package pusher
+package finder
 
-// This function has been placed in its own file because, in the fullness of
-// time, we expect Pusher to become a library used by the inotify exporter, and
-// for this function to therefore become unused.
+// The finder package provides a `find`-like interface to file discovery.  In the fullness of
+// time, we expect Pusher to use inotify, and so this more IO-intensive
+// approach will not be needed and this code will be deleted.
 
 import (
+	"github.com/m-lab/pusher/fileinfo"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,8 +15,8 @@ import (
 
 // FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataFile) {
-	eligibleFiles := make([]*LocalDataFile, 0)
+func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDataFile, error) {
+	eligibleFiles := make([]*fileinfo.LocalDataFile, 0)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
@@ -28,10 +29,9 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			localDataFile := &LocalDataFile {
-				FullRelativeName: path,
-				Info: info,
-				CachedSize: info.Size(),
+			localDataFile := &fileinfo.LocalDataFile{
+				AbsoluteFileName: path,
+				Info:             info,
 			}
 			eligibleFiles = append(eligibleFiles, localDataFile)
 			totalEligibleSize += info.Size()
@@ -39,9 +39,9 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 		return nil
 	})
 
-        if err != nil {
+	if err != nil {
 		log.Printf("Could not walk %s (err=%s)", directory, err)
-		return err, eligibleFiles
+		return eligibleFiles, err
 	}
 	log.Printf("Total file sizes = %d", totalEligibleSize)
 	log.Printf("Total file count = %d", len(eligibleFiles))
@@ -49,7 +49,5 @@ func FindFiles(directory string, minFileAge time.Duration) (error, []*LocalDataF
 	sort.Slice(eligibleFiles, func(i, j int) bool {
 		return eligibleFiles[i].Info.ModTime().Before(eligibleFiles[j].Info.ModTime())
 	})
-	return nil, eligibleFiles
+	return eligibleFiles, nil
 }
-
-
