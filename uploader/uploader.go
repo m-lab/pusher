@@ -7,7 +7,7 @@ import (
 type Uploader struct {
 }
 
-func New(project string, bucket string, creds string) *Uploader {
+func New(project string, bucket string) *Uploader {
 	return &Uploader{}
 }
 

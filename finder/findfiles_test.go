@@ -22,7 +22,7 @@ func TestFindFiles(t *testing.T) {
 	if len(localfiles) != 1 {
 		t.Errorf("len(localfiles) (%d) != 1", len(localfiles))
 	}
-	if localfiles[0].FullRelativeName != tempdir+"/next_oldest_file" {
-		t.Errorf("wrong name: %s", localfiles[0].FullRelativeName)
+	if localfiles[0].AbsoluteFileName != tempdir+"/next_oldest_file" {
+		t.Errorf("wrong name: %s", localfiles[0].AbsoluteFileName)
 	}
 }

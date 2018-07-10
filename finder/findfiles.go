@@ -1,8 +1,8 @@
 package finder
 
-// This function has been placed in its own file because, in the fullness of
-// time, we expect Pusher to become a library used by the inotify exporter, and
-// for this function to therefore become unused.
+// The finder package provides a `find`-like interface to file discovery.  In the fullness of
+// time, we expect Pusher to use inotify, and so this more IO-intensive
+// approach will not be needed and this code will be deleted.
 
 import (
 	"github.com/m-lab/pusher/bytecount"
@@ -31,7 +31,7 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDat
 		}
 		if eligibleTime.After(info.ModTime()) {
 			localDataFile := &fileinfo.LocalDataFile{
-				FullRelativeName: path,
+				AbsoluteFileName: path,
 				Info:             info,
 				CachedSize:       bytecount.ByteCount(info.Size()),
 			}
