@@ -1,7 +1,6 @@
-package pusher_test
+package finder
 
 import (
-	"github.com/m-lab/pusher"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -15,15 +14,15 @@ func TestFindFiles(t *testing.T) {
 	_, _ = file1.WriteString("data\n")
 	_ = file1.Close()
 	newtime := time.Now().Add(time.Duration(-12) * time.Hour)
-	_ = os.Chtimes(tempdir + "/next_oldest_file", newtime, newtime)
-	err, localfiles := pusher.FindFiles(tempdir, time.Duration(6) * time.Hour)
+	_ = os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime)
+	localfiles, err := FindFiles(tempdir, time.Duration(6)*time.Hour)
 	if err != nil {
 		t.Error(err)
 	}
 	if len(localfiles) != 1 {
 		t.Errorf("len(localfiles) (%d) != 1", len(localfiles))
 	}
-	if localfiles[0].FullRelativeName != tempdir + "/next_oldest_file" {
+	if localfiles[0].FullRelativeName != tempdir+"/next_oldest_file" {
 		t.Errorf("wrong name: %s", localfiles[0].FullRelativeName)
 	}
 }
