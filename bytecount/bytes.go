@@ -24,16 +24,16 @@ const (
 )
 
 // Get is used by the Flag library to get the value out of the ByteCount.
-func (b *ByteCount) Get() interface{} {
-	return *b
+func (b ByteCount) Get() interface{} {
+	return b
 }
 
 // String is used by the Flag library to turn the value into a string.  For
 // ease of implementation we avoid attempting to turn the string into a short
 // KB/MB/GB form, instead electing to just keep everything expanded even if it
 // could be expressed more succinctly.
-func (b *ByteCount) String() string {
-	return fmt.Sprintf("%d", *b)
+func (b ByteCount) String() string {
+	return fmt.Sprintf("%d", b)
 }
 
 // Set is used by the Flag library to turn a string into a ByteCount.  This

@@ -8,7 +8,7 @@ import (
 func TestByteParsing(t *testing.T) {
 	// Check successes
 	tests := []struct {
-		in string
+		in  string
 		out ByteCount
 	}{
 		{in: "1KB", out: ByteCount(1000)},
@@ -37,6 +37,13 @@ func TestByteParsing(t *testing.T) {
 		if err := b.Set(input); err == nil {
 			t.Errorf("Failed to have an error on %q", input)
 		}
+	}
+}
+
+func TestString(t *testing.T) {
+	b := ByteCount(1)
+	if b.String() != "1" {
+		t.Error("1 byte doesn't turn into the string 1")
 	}
 }
 
