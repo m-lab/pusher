@@ -14,12 +14,12 @@ var (
 	directory     = flag.String("directory", "/var/spool/test", "The directory to watch for files.")
 	project       = flag.String("project", "mlab-sandbox", "The GCP project for uploading")
 	bucket        = flag.String("bucket", "dropbox-mlab-sandbox", "The GCP bucket for uploading")
-	ageThreshold  = flag.Duration("age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
+	ageThreshold  = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold = bytecount.ByteCount(20 * bytecount.Megabyte)
 )
 
 func init() {
-	flag.Var(&sizeThreshold, "size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
+	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
 }
 
 func main() {
