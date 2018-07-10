@@ -1,19 +1,18 @@
 package pusher
 
 import (
-	"time"
 	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/fileinfo"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
+	"time"
 )
-
 
 // Config holds all config information needed for a new pusher channel.
 type Config struct {
-	Project, Bucket string
+	Project, Bucket      string
 	TarfileSizeThreshold bytecount.ByteCount
-	FileAgeThreshold time.Duration
+	FileAgeThreshold     time.Duration
 }
 
 // New creates a new channel to which files for upload should be sent, and also

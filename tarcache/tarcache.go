@@ -11,20 +11,20 @@ import (
 )
 
 type TarCache struct {
-	mutex sync.Mutex
-	members []*fileinfo.LocalDataFile
+	mutex           sync.Mutex
+	members         []*fileinfo.LocalDataFile
 	tarFileContents *bytes.Buffer
-	sizeThreshold bytecount.ByteCount
-	ageThreshold time.Duration
-	uploader *uploader.Uploader
+	sizeThreshold   bytecount.ByteCount
+	ageThreshold    time.Duration
+	uploader        *uploader.Uploader
 }
 
 func New(sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader *uploader.Uploader) *TarCache {
 	return &TarCache{
 		tarFileContents: new(bytes.Buffer),
-		sizeThreshold: sizeThreshold,
-		ageThreshold: ageThreshold,
-		uploader: uploader,
+		sizeThreshold:   sizeThreshold,
+		ageThreshold:    ageThreshold,
+		uploader:        uploader,
 	}
 }
 
