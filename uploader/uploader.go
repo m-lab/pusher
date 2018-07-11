@@ -13,10 +13,11 @@ type Uploader interface {
 
 // We split the Uploader into a struct and Interface to allow for mocking.
 type uploader struct {
+	template string
 }
 
 // New creates and returns a new object that implements Uploader.
-func New(project string, bucket string) Uploader {
+func New(template string) Uploader {
 	return &uploader{}
 }
 

@@ -13,8 +13,7 @@ import (
 
 var (
 	directory     = flag.String("directory", "/var/spool/test", "The directory to watch for files.")
-	project       = flag.String("project", "mlab-sandbox", "The GCP project for uploading")
-	bucket        = flag.String("bucket", "dropbox-mlab-sandbox", "The GCP bucket for uploading")
+	fileTemplate  = flag.String("gcs_file_template", "gs://scraper-mlab-sandbox/experiment/", "A string template for the time, suitable for passing to Go's time.Format()")
 	ageThreshold  = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold = bytecount.ByteCount(20 * bytecount.Megabyte)
 )
