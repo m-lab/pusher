@@ -61,7 +61,7 @@ func TestAdd(t *testing.T) {
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
 	}
-	tarCache.Add(&tinyFile)
+	tarCache.add(&tinyFile)
 	if tarCache.currentTarfile.contents.Len() == 0 {
 		t.Errorf("The file should be of nonzero length and is not (%d == 0)", tarCache.currentTarfile.contents.Len())
 	}
@@ -78,7 +78,7 @@ func TestAdd(t *testing.T) {
 		AbsoluteFileName: tempdir + "/a/b/bigfile",
 		Info:             fileStat,
 	}
-	tarCache.Add(&bigFile)
+	tarCache.add(&bigFile)
 	if uploader.calls == 0 {
 		t.Error("uploader.calls should be >0 ")
 	}
@@ -120,7 +120,7 @@ func TestAdd(t *testing.T) {
 	if len(tarCache.currentTarfile.members) != 0 || tarCache.currentTarfile.contents.Len() != 0 {
 		t.Error("Failed to clear the cache after upload")
 	}
-	tarCache.Add(&tiny2File)
+	tarCache.add(&tiny2File)
 	if len(tarCache.currentTarfile.members) != 1 || tarCache.currentTarfile.contents.Len() == 0 {
 		t.Error("Failed to add the new file after upload")
 	}
@@ -150,13 +150,8 @@ func TestTimer(t *testing.T) {
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
 	}
-	tarCache.Add(&tinyFile)
-	if tarCache.currentTarfile.contents.Len() == 0 {
-		t.Errorf("The file should be of nonzero length and is not (%d == 0)", tarCache.currentTarfile.contents.Len())
-	}
-	if len(tarCache.currentTarfile.members) != 1 {
-		t.Errorf("The tarCache should have a member and it does not")
-	}
+	go tarCache.ListenForever()
+	tarCache.C <- &tinyFile
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
@@ -182,12 +177,9 @@ func TestTimer(t *testing.T) {
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
 	}
-	tarCache.Add(&tiny2File)
+	tarCache.C <- &tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
-	}
-	if len(tarCache.currentTarfile.members) != 1 {
-		t.Errorf("The tarCache should have a member and it does not")
 	}
 	// Wait for the timer to fire.
 	time.Sleep(time.Duration(250 * time.Millisecond))
