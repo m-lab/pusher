@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -25,16 +26,22 @@ import (
 // uploader.  To upload a lot of tarfiles, you should only have to create one
 // TarCache.
 type TarCache struct {
-	mutex           sync.Mutex
-	timer           *time.Timer
-	members         []*fileinfo.LocalDataFile
-	tarFileContents *bytes.Buffer
-	tarWriter       *tar.Writer
-	gzipWriter      *gzip.Writer
-	sizeThreshold   bytecount.ByteCount
-	ageThreshold    time.Duration
-	rootDirectory   string
-	uploader        *uploader.Uploader
+	mutex          sync.Mutex
+	currentTarfile *tarfile
+	sizeThreshold  bytecount.ByteCount
+	ageThreshold   time.Duration
+	rootDirectory  string
+	uploader       uploader.Uploader
+}
+
+// A tarfile represents a single tar file containing data for upload
+type tarfile struct {
+	timer      *time.Timer
+	members    []*fileinfo.LocalDataFile
+	contents   *bytes.Buffer
+	tarWriter  *tar.Writer
+	gzipWriter *gzip.Writer
+	uploaded   bool
 }
 
 // New creates a new TarCache object and returns a pointer to it.  The TarCache
@@ -42,27 +49,30 @@ type TarCache struct {
 // timeout loop outside of the tarcache  The TarCache will have its associated
 // timeOutLoop running.  There is no way to stop this timeout loop outside of
 // the tarcache package.
-func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader *uploader.Uploader) *TarCache {
-	// Technically these next two lines constitute a race condition. In
-	// reality they do not, because the ageThreshold is measured in minutes
-	// and not microseconds.
-	timer := time.NewTimer(ageThreshold)
-	timer.Stop()
+func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) *TarCache {
+	if !strings.HasSuffix(rootDirectory, "/") {
+		rootDirectory += "/"
+	}
+	tarCache := &TarCache{
+		rootDirectory:  rootDirectory,
+		currentTarfile: newTarfile(),
+		sizeThreshold:  sizeThreshold,
+		ageThreshold:   ageThreshold,
+		uploader:       uploader,
+	}
+	return tarCache
+}
+
+func newTarfile() *tarfile {
 	buffer := new(bytes.Buffer)
 	gzipWriter := gzip.NewWriter(buffer)
 	tarWriter := tar.NewWriter(gzipWriter)
-	tarCache := &TarCache{
-		rootDirectory:   rootDirectory,
-		tarFileContents: buffer,
-		tarWriter:       tarWriter,
-		gzipWriter:      gzipWriter,
-		timer:           timer,
-		sizeThreshold:   sizeThreshold,
-		ageThreshold:    ageThreshold,
-		uploader:        uploader,
+	return &tarfile{
+		uploaded:   false,
+		contents:   buffer,
+		tarWriter:  tarWriter,
+		gzipWriter: gzipWriter,
 	}
-	go tarCache.runTimeoutLoop()
-	return tarCache
 }
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
@@ -87,40 +97,39 @@ func (t *TarCache) Add(file *fileinfo.LocalDataFile) {
 	// reset everything.
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	if err = t.tarWriter.WriteHeader(header); err != nil {
+	tf := t.currentTarfile
+	if err = tf.tarWriter.WriteHeader(header); err != nil {
 		log.Printf("Could not write the tarfile header for %s (error: %q)\n", file.AbsoluteFileName, err)
 		t.flushWhileLocked()
 		return
 	}
-	if _, err = t.tarWriter.Write(contents); err != nil {
+	if _, err = tf.tarWriter.Write(contents); err != nil {
 		log.Printf("Could not write the tarfile contents for %s (error: %q)\n", file.AbsoluteFileName, err)
 		t.flushWhileLocked()
 		return
 	}
-	if err = t.tarWriter.Flush(); err != nil {
+	if err = tf.tarWriter.Flush(); err != nil {
 		log.Printf("Could not flush the tarWriter (error: %q)\n", err)
 		t.flushWhileLocked()
 		return
 	}
-	if err = t.gzipWriter.Flush(); err != nil {
+	if err = tf.gzipWriter.Flush(); err != nil {
 		log.Printf("Could not flush the gzipWriter (error: %q)\n", err)
 		t.flushWhileLocked()
 		return
 	}
-	if len(t.members) == 0 {
-		t.timer.Reset(t.ageThreshold)
+	if len(tf.members) == 0 {
+		tf.timer = time.AfterFunc(t.ageThreshold, t.flushAfterTimeout)
 	}
-	t.members = append(t.members, file)
-	if bytecount.ByteCount(t.tarFileContents.Len()) > t.sizeThreshold {
+	tf.members = append(tf.members, file)
+	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.flushWhileLocked()
 	}
 }
 
-func (t *TarCache) runTimeoutLoop() {
-	for range t.timer.C {
-		log.Println("TarCache timeout fired.")
-		t.Flush()
-	}
+func (t *TarCache) flushAfterTimeout() {
+	log.Println("Flush called after timeout")
+	t.Flush()
 }
 
 // Flush the buffer.
@@ -132,23 +141,38 @@ func (t *TarCache) Flush() {
 
 // Only call this function when holding the mutex lock.
 func (t *TarCache) flushWhileLocked() {
-	t.timer.Stop()
-	if len(t.members) == 0 {
+	t.currentTarfile.uploadAndDelete(t.uploader)
+	t.currentTarfile = newTarfile()
+}
+
+// Upload the contents of the tarfile and then delete the component files.
+func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
+	if t.timer != nil {
+		t.timer.Stop()
+		t.timer = nil
+	}
+	if len(t.members) == 0 || t.uploaded {
 		return
 	}
 	t.tarWriter.Close()
 	t.gzipWriter.Close()
-	if err := t.uploader.Upload(t.tarFileContents); err != nil {
-		log.Printf("Error uploading: %q, will retry\n", err)
+	backoff := time.Duration(100) * time.Millisecond
+	for err := uploader.Upload(t.contents); err != nil; err = uploader.Upload(t.contents) {
+		log.Printf("Error uploading: %q, will retry after %s\n", err, backoff.String())
+		time.Sleep(backoff)
+		backoff = time.Duration(backoff.Seconds()*2) * time.Second
+		// The maximum retry interval is every five minutes. Once five minutes has
+		// been reached, wait for five minutes plus a random number of seconds.
+		if backoff.Minutes() > 5 {
+			backoff = time.Duration(300+(rand.Int()%60)) * time.Second
+		}
 	}
+	t.uploaded = true
 	for _, file := range t.members {
+		log.Printf("Removing %s\n", file.AbsoluteFileName)
 		err := os.Remove(file.AbsoluteFileName)
 		if err != nil {
 			log.Printf("Failed to remove %s (error: %q)\n", file.AbsoluteFileName, err)
 		}
 	}
-	t.members = []*fileinfo.LocalDataFile{}
-	t.tarFileContents = new(bytes.Buffer)
-	t.gzipWriter = gzip.NewWriter(t.tarFileContents)
-	t.tarWriter = tar.NewWriter(t.gzipWriter)
 }

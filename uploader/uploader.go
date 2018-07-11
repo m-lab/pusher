@@ -4,13 +4,21 @@ import (
 	"bytes"
 )
 
-type Uploader struct {
+// Uploader is an interface for uploading data.
+type Uploader interface {
+	Upload(*bytes.Buffer) error
 }
 
-func New(project string, bucket string) *Uploader {
-	return &Uploader{}
+// We split the Uploader into a struct and Interface to allow for mocking.
+type uploader struct {
 }
 
-func (u *Uploader) Upload(tarBuffer *bytes.Buffer) error {
+// New creates and returns a new object that implements Uploader.
+func New(project string, bucket string) Uploader {
+	return &uploader{}
+}
+
+// Upload the provided buffer to GCS.
+func (u *uploader) Upload(tarBuffer *bytes.Buffer) error {
 	return nil
 }
