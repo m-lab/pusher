@@ -20,9 +20,9 @@ import (
 // that get incremented.
 
 // TarCache contains everything you need to incrementally create a tarfile.
-// Once enough time has passed since the first Add() call OR the resulting tar
-// file has become big enough, it will call the Upload() method of the passed-in
-// uploader.  To upload a lot of tarfiles, you should only have to create one
+// Once enough time has passed since the first file was adder call OR the
+// resulting tar file has become big enough, it will call the uploadAndDelete()
+// method.  To upload a lot of tarfiles, you should only have to create one
 // TarCache.
 type TarCache struct {
 	channel        <-chan *fileinfo.LocalDataFile
@@ -95,7 +95,7 @@ func (t *TarCache) ListenForever() {
 }
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
-// calls Upload() afterwards.
+// calls uploadAndDelete() afterwards.
 func (tc *TarCache) add(file *fileinfo.LocalDataFile) {
 	contents, err := ioutil.ReadFile(file.AbsoluteFileName)
 	if err != nil {
