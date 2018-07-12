@@ -20,10 +20,10 @@ import (
 // that get incremented.
 
 // TarCache contains everything you need to incrementally create a tarfile.
-// Once enough time has passed since the first file was adder call OR the
-// resulting tar file has become big enough, it will call the uploadAndDelete()
-// method.  To upload a lot of tarfiles, you should only have to create one
-// TarCache.
+// Once enough time has passed since the first file was added OR the resulting
+// tar file has become big enough, it will call the uploadAndDelete() method.
+// To upload a lot of tarfiles, you should only have to create one TarCache.
+// The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
 	channel        <-chan *fileinfo.LocalDataFile
 	currentTarfile *tarfile
@@ -35,7 +35,7 @@ type TarCache struct {
 
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
-	timeout <-chan time.Time
+	timeout    <-chan time.Time
 	members    []*fileinfo.LocalDataFile
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
@@ -96,14 +96,14 @@ func (t *TarCache) ListenForever() {
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
-func (tc *TarCache) add(file *fileinfo.LocalDataFile) {
+func (t *TarCache) add(file *fileinfo.LocalDataFile) {
 	contents, err := ioutil.ReadFile(file.AbsoluteFileName)
 	if err != nil {
 		log.Printf("Could not read %s (error: %q)\n", file.AbsoluteFileName, err)
 		return
 	}
 	header := &tar.Header{
-		Name: strings.TrimPrefix(file.AbsoluteFileName, tc.rootDirectory),
+		Name: strings.TrimPrefix(file.AbsoluteFileName, t.rootDirectory),
 		Mode: 0666,
 		Size: int64(len(contents)),
 	}
@@ -111,7 +111,7 @@ func (tc *TarCache) add(file *fileinfo.LocalDataFile) {
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable, call log.Fatal, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	tf := tc.currentTarfile
+	tf := t.currentTarfile
 	if err = tf.tarWriter.WriteHeader(header); err != nil {
 		log.Fatalf("Could not write the tarfile header for %s (error: %q)\n", file.AbsoluteFileName, err)
 	}
@@ -126,12 +126,12 @@ func (tc *TarCache) add(file *fileinfo.LocalDataFile) {
 		log.Fatalf("Could not flush the gzipWriter (error: %q)\n", err)
 	}
 	if len(tf.members) == 0 {
-		timer := time.NewTimer(tc.ageThreshold)
+		timer := time.NewTimer(t.ageThreshold)
 		tf.timeout = timer.C
 	}
 	tf.members = append(tf.members, file)
-	if bytecount.ByteCount(tf.contents.Len()) > tc.sizeThreshold {
-		tc.uploadAndDelete()
+	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
+		t.uploadAndDelete()
 	}
 }
 
