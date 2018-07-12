@@ -25,7 +25,7 @@ import (
 // To upload a lot of tarfiles, you should only have to create one TarCache.
 // The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
-	channel        <-chan *fileinfo.LocalDataFile
+	fileChannel    <-chan *fileinfo.LocalDataFile
 	currentTarfile *tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   time.Duration
@@ -50,16 +50,16 @@ func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold t
 	}
 	// By giving the channel a large buffer, we attempt to decouple file
 	// discovery event response times from any file processing times.
-	channel := make(chan *fileinfo.LocalDataFile, 1000000)
+	fileChannel := make(chan *fileinfo.LocalDataFile, 1000000)
 	tarCache := &TarCache{
-		channel:        channel,
+		fileChannel:    fileChannel,
 		rootDirectory:  rootDirectory,
 		currentTarfile: newTarfile(),
 		sizeThreshold:  sizeThreshold,
 		ageThreshold:   ageThreshold,
 		uploader:       uploader,
 	}
-	return tarCache, channel
+	return tarCache, fileChannel
 }
 
 func newTarfile() *tarfile {
@@ -76,7 +76,7 @@ func newTarfile() *tarfile {
 
 // ListenForever waits for new files and then uploads them. Using this approach
 // allows us to ensure that all file processing happens in this single thread,
-// no matter whethert the processing is happening due to age thresholds or size
+// no matter whether the processing is happening due to age thresholds or size
 // thresholds.
 func (t *TarCache) ListenForever() {
 	channelOpen := true
@@ -85,7 +85,7 @@ func (t *TarCache) ListenForever() {
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
-		case dataFile, channelOpen = <-t.channel:
+		case dataFile, channelOpen = <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
 			}

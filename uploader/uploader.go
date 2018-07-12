@@ -4,6 +4,8 @@ import (
 	"bytes"
 )
 
+// TODO: implement these functions.
+
 // Uploader is an interface for uploading data.
 type Uploader interface {
 	Upload(*bytes.Buffer) error
