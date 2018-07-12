@@ -7,7 +7,8 @@ import (
 
 	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/finder"
-	"github.com/m-lab/pusher/pusher"
+	"github.com/m-lab/pusher/tarcache"
+	"github.com/m-lab/pusher/uploader"
 )
 
 var (
@@ -24,13 +25,10 @@ func init() {
 
 func main() {
 	flag.Parse()
-	config := pusher.Config{
-		Project:              *project,
-		Bucket:               *bucket,
-		TarfileSizeThreshold: sizeThreshold,
-		FileAgeThreshold:     *ageThreshold,
-	}
-	pusherChannel := pusher.New(config)
+	uploader := uploader.New(*project, *bucket)
+	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
+	go tarCache.ListenForever()
+
 	interval := time.Duration(10) * time.Minute
 	for {
 		files, err := finder.FindFiles(*directory, interval)
