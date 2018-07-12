@@ -50,7 +50,7 @@ func TestAdd(t *testing.T) {
 	uploader := fakeUploader{
 		requestedRetries: 1,
 	}
-	tarCache := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	if tarCache.currentTarfile.contents.Len() != 0 {
 		t.Errorf("The file should be of zero length and is not (%d != 0)", tarCache.currentTarfile.contents.Len())
 	}
@@ -142,7 +142,7 @@ func TestTimer(t *testing.T) {
 	ioutil.WriteFile(tempdir+"/a/b/bigfile", bigcontents, os.FileMode(0666))
 
 	uploader := fakeUploader{}
-	tarCache := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	// Add the small file, which should not trigger an upload.
 	fileObject, _ := os.Open(tempdir + "/tinyfile")
 	fileStat, _ := fileObject.Stat()
@@ -151,7 +151,7 @@ func TestTimer(t *testing.T) {
 		Info:             fileStat,
 	}
 	go tarCache.ListenForever()
-	tarCache.C <- &tinyFile
+	channel <- &tinyFile
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
@@ -177,7 +177,7 @@ func TestTimer(t *testing.T) {
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
 	}
-	tarCache.C <- &tiny2File
+	channel <- &tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}

@@ -18,10 +18,10 @@ type Config struct {
 
 // New creates a new channel to which files for upload should be sent, and also
 // sets up the goroutine which does the tar and push operations.
-func New(config Config) chan *fileinfo.LocalDataFile {
+func New(config Config) chan<- *fileinfo.LocalDataFile {
 	// Set up the processing chain.
 	uploader := uploader.New(config.Project, config.Bucket)
-	tarCache := tarcache.New(config.Directory, config.TarfileSizeThreshold, config.FileAgeThreshold, uploader)
+	tarCache, channel := tarcache.New(config.Directory, config.TarfileSizeThreshold, config.FileAgeThreshold, uploader)
 	go tarCache.ListenForever()
-	return tarCache.C
+	return channel
 }
