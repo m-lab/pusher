@@ -8,9 +8,9 @@ before_install:
 - if [[ -n "$SERVICE_ACCOUNT_mlab_testing" ]] ; then
   echo "$SERVICE_ACCOUNT_mlab_testing" > $TRAVIS_BUILD_DIR/creds.json ;
   export GOOGLE_APPLICATION_CREDENTIALS=$TRAVIS_BUILD_DIR/creds.json ;
-  echo "TESTING CREDS FOUND"
-  else
-  echo "NO TESTING CREDS FOUND"
+  echo "TESTING CREDS FOUND" ;
+  else ;
+  echo "NO TESTING CREDS FOUND" ;
   fi
 
 cache:
