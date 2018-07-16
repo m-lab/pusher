@@ -27,6 +27,8 @@ func init() {
 	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
 }
 
+// TODO: Add prometheus metrics.
+
 func main() {
 	flag.Parse()
 	namer := namer.New(*experiment, *node, *site)
@@ -37,6 +39,9 @@ func main() {
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
 	go tarCache.ListenForever()
 
+	// TODO: only do this FindFiles thing on startup. Once everything is
+	// started, use inotify listeners to get notified on file close events
+	// in the directory and its subdirectories.
 	interval := time.Duration(10) * time.Minute
 	for {
 		files, err := finder.FindFiles(*directory, interval)
@@ -46,4 +51,5 @@ func main() {
 		}
 		time.Sleep(interval)
 	}
+
 }
