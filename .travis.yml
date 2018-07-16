@@ -8,6 +8,9 @@ before_install:
 - if [[ -n "$SERVICE_ACCOUNT_mlab_testing" ]] ; then
   echo "$SERVICE_ACCOUNT_mlab_testing" > $TRAVIS_BUILD_DIR/creds.json ;
   export GOOGLE_APPLICATION_CREDENTIALS=$TRAVIS_BUILD_DIR/creds.json ;
+  echo "TESTING CREDS FOUND"
+  else
+  echo "NO TESTING CREDS FOUND"
   fi
 
 cache:
@@ -15,10 +18,17 @@ cache:
   - "$HOME/google-cloud-sdk/"
 
 script:
-- for module in $(find * -type d  | grep -v '^git-hooks$' | grep -v '^travis$'); do
-  go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/pusher/$module ;
+- for module in $(find * -type d |
+                  grep -v '^git-hooks$' |
+                  grep -v '^travis$'); do
+  GCLOUD_PROJECT=mlab-testing
+    go test
+    -v -covermode=count -coverprofile=$module.cov
+    github.com/m-lab/pusher/$module ;
   done
 # This assumes we never have a module named merged_test_coverage. A good
 # assumption, but one we should note.
 - $HOME/gopath/bin/gocovmerge *.cov > merged_test_coverage.cov
-- $HOME/gopath/bin/goveralls -coverprofile=merged_test_coverage.cov -service=travis-ci
+- $HOME/gopath/bin/goveralls
+    -coverprofile=merged_test_coverage.cov
+    -service=travis-ci
