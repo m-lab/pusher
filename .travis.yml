@@ -1,11 +1,21 @@
 language: go
 
-before_script:
+before_install:
 - go get github.com/mattn/goveralls
 - go get github.com/wadey/gocovmerge
+- $TRAVIS_BUILD_DIR/travis/install_gcloud.sh
+- source "${HOME}/google-cloud-sdk/path.bash.inc"
+- if [[ -n "$SERVICE_ACCOUNT_mlab_testing" ]] ; then
+  echo "$SERVICE_ACCOUNT_mlab_testing" > $TRAVIS_BUILD_DIR/creds.json ;
+  export GOOGLE_APPLICATION_CREDENTIALS=$TRAVIS_BUILD_DIR/creds.json ;
+  fi
+
+cache:
+  directories:
+  - "$HOME/google-cloud-sdk/"
 
 script:
-- for module in $(find * -type d  | grep -v git-hooks); do
+- for module in $(find * -type d  | grep -v '^git-hooks$' | grep -v '^travis$'); do
   go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/pusher/$module ;
   done
 # This assumes we never have a module named merged_test_coverage. A good
