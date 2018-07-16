@@ -25,13 +25,17 @@ type uploader struct {
 }
 
 // New creates and returns a new object that implements Uploader.
-func New(project string, bucket string, namer namer.Namer) (*uploader, error) {
+func New(project string, bucket string, namer namer.Namer) (Uploader, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	bucketHandle := client.Bucket(bucket)
+	// Check if the bucket exists
+	if _, err := bucketHandle.Attrs(ctx); err != nil {
+		return nil, err
+	}
 	return &uploader{
 		context:    ctx,
 		namer:      namer,
