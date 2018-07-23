@@ -10,13 +10,15 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m-lab/pusher/fileinfo"
+	"github.com/m-lab/pusher/tarcache"
 )
 
 // FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDataFile, error) {
-	eligibleFiles := make([]*fileinfo.LocalDataFile, 0)
+func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDataFile, error) {
+	// Initially expect around 1024 files.  Chosen because it's a nice round number.
+	// TODO: Choose a better default.
+	eligibleFiles := make([]*tarcache.LocalDataFile, 0)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
@@ -29,7 +31,7 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDat
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			localDataFile := &fileinfo.LocalDataFile{
+			localDataFile := &tarcache.LocalDataFile{
 				AbsoluteFileName: path,
 				Info:             info,
 			}
@@ -43,6 +45,7 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*fileinfo.LocalDat
 		log.Printf("Could not walk %s (err=%s)", directory, err)
 		return eligibleFiles, err
 	}
+	// TODO: add metrics
 	log.Printf("Total file sizes = %d", totalEligibleSize)
 	log.Printf("Total file count = %d", len(eligibleFiles))
 	// Sort the files by mtime

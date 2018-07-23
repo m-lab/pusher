@@ -1,8 +1,10 @@
-package namer
+package namer_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/m-lab/pusher/namer"
 )
 
 func TestFilenameGeneration(t *testing.T) {
@@ -19,7 +21,7 @@ func TestFilenameGeneration(t *testing.T) {
 			out: "/exp/2008/01/01/20080101T000000.000Z-mlab6-lga0t-exp.tgz",
 		},
 	}
-	namer := New("exp", "mlab6", "lga0t")
+	namer := namer.New("exp", "mlab6", "lga0t")
 	for _, test := range tests {
 		if out := namer.ObjectName(test.in); out != test.out {
 			t.Errorf("%q != %q (input: %v)", out, test.out, test.in)

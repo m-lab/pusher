@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/m-lab/pusher/bytecount"
-	"github.com/m-lab/pusher/fileinfo"
 )
 
 type fakeUploader struct {
@@ -32,6 +31,7 @@ func (f *fakeUploader) Upload(contents *bytes.Buffer) error {
 	return nil
 }
 
+// A whitebox test that verifies that the cache contents are built up gradually.
 func TestAdd(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestAdd")
 	defer os.RemoveAll(tempdir)
@@ -57,7 +57,7 @@ func TestAdd(t *testing.T) {
 	// Add the tiny file, which should not trigger an upload.
 	fileObject, _ := os.Open(tempdir + "/tinyfile")
 	fileStat, _ := fileObject.Stat()
-	tinyFile := fileinfo.LocalDataFile{
+	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
 	}
@@ -74,7 +74,7 @@ func TestAdd(t *testing.T) {
 	// Add the big file, which should trigger an upload and file deletion.
 	fileObject, _ = os.Open(tempdir + "/a/b/bigfile")
 	fileStat, _ = fileObject.Stat()
-	bigFile := fileinfo.LocalDataFile{
+	bigFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/a/b/bigfile",
 		Info:             fileStat,
 	}
@@ -113,7 +113,7 @@ func TestAdd(t *testing.T) {
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	fileObject, _ = os.Open(tempdir + "/tiny2")
 	fileStat, _ = fileObject.Stat()
-	tiny2File := fileinfo.LocalDataFile{
+	tiny2File := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
 	}
@@ -146,7 +146,7 @@ func TestTimer(t *testing.T) {
 	// Add the small file, which should not trigger an upload.
 	fileObject, _ := os.Open(tempdir + "/tinyfile")
 	fileStat, _ := fileObject.Stat()
-	tinyFile := fileinfo.LocalDataFile{
+	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
 	}
@@ -173,7 +173,7 @@ func TestTimer(t *testing.T) {
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	fileObject, _ = os.Open(tempdir + "/tiny2")
 	fileStat, _ = fileObject.Stat()
-	tiny2File := fileinfo.LocalDataFile{
+	tiny2File := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
 	}

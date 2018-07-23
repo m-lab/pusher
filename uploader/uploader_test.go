@@ -1,4 +1,4 @@
-package uploader
+package uploader_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/m-lab/pusher/uploader"
 )
 
 type testNamer struct {
@@ -25,7 +27,7 @@ func TestUploading(t *testing.T) {
 	namer := &testNamer{
 		newName: fileName,
 	}
-	uploader, err := Create("mlab-testing", "archive-mlab-testing", namer)
+	uploader, err := uploader.Create("mlab-testing", "archive-mlab-testing", namer)
 	if err != nil {
 		t.Fatal("Could not make uploader:", err)
 	}
