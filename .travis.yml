@@ -1,14 +1,36 @@
 language: go
 
-before_script:
+before_install:
 - go get github.com/mattn/goveralls
 - go get github.com/wadey/gocovmerge
+- $TRAVIS_BUILD_DIR/travis/install_gcloud.sh
+- source "${HOME}/google-cloud-sdk/path.bash.inc"
+- if [[ -n "$SERVICE_ACCOUNT_mlab_testing" ]] ; then
+  echo "$SERVICE_ACCOUNT_mlab_testing" > $TRAVIS_BUILD_DIR/creds.json ;
+  export GOOGLE_APPLICATION_CREDENTIALS=$TRAVIS_BUILD_DIR/creds.json ;
+  echo "TESTING CREDS FOUND" ;
+  else echo "NO TESTING CREDS FOUND" ;
+  fi
+
+cache:
+  directories:
+  - "$HOME/google-cloud-sdk/"
 
 script:
-- for module in $(find * -type d  | grep -v git-hooks); do
-  go test -v -covermode=count -coverprofile=$module.cov github.com/m-lab/pusher/$module ;
+# This script replaces / with ___ in the coverage file names. If you have
+# two modules, one named x/y and one named x___y, then this will break. But
+# don't put triple underscores in a module name: That's bad practice anyway.
+- for module in $(find * -type d |
+                  grep -v '^git-hooks$' |
+                  grep -v '^travis$'); do
+  GCLOUD_PROJECT=mlab-testing
+    go test
+    -v -covermode=count -coverprofile=${module#/#___}.cov
+    github.com/m-lab/pusher/$module ;
   done
-# This assumes we never have a module named merged_test_coverage. A good
+# This assumes we never have a module named __merged_test_coverage. A good
 # assumption, but one we should note.
-- $HOME/gopath/bin/gocovmerge *.cov > merged_test_coverage.cov
-- $HOME/gopath/bin/goveralls -coverprofile=merged_test_coverage.cov -service=travis-ci
+- $HOME/gopath/bin/gocovmerge *.cov > __merged_test_coverage.cov
+- $HOME/gopath/bin/goveralls
+    -coverprofile=__merged_test_coverage.cov
+    -service=travis-ci

@@ -1,3 +1,6 @@
+// Package tarcache supports the creation and running of a pipeline that
+// receives files, tars up the contents, and uploads everything when the tarfile
+// is big enough or the contents are old enough.
 package tarcache
 
 import (
@@ -12,12 +15,17 @@ import (
 	"time"
 
 	"github.com/m-lab/pusher/bytecount"
-	"github.com/m-lab/pusher/fileinfo"
 	"github.com/m-lab/pusher/uploader"
 )
 
 // TODO: All calls to log.Print* should have corresponding prometheus counters
 // that get incremented.
+
+// A LocalDataFile holds all the information we require about a file.
+type LocalDataFile struct {
+	AbsoluteFileName string
+	Info             os.FileInfo
+}
 
 // TarCache contains everything you need to incrementally create a tarfile.
 // Once enough time has passed since the first file was added OR the resulting
@@ -25,7 +33,7 @@ import (
 // To upload a lot of tarfiles, you should only have to create one TarCache.
 // The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
-	fileChannel    <-chan *fileinfo.LocalDataFile
+	fileChannel    <-chan *LocalDataFile
 	currentTarfile *tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   time.Duration
@@ -36,7 +44,7 @@ type TarCache struct {
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    <-chan time.Time
-	members    []*fileinfo.LocalDataFile
+	members    []*LocalDataFile
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -44,13 +52,13 @@ type tarfile struct {
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- *fileinfo.LocalDataFile) {
+func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- *LocalDataFile) {
 	if !strings.HasSuffix(rootDirectory, "/") {
 		rootDirectory += "/"
 	}
 	// By giving the channel a large buffer, we attempt to decouple file
 	// discovery event response times from any file processing times.
-	fileChannel := make(chan *fileinfo.LocalDataFile, 1000000)
+	fileChannel := make(chan *LocalDataFile, 1000000)
 	tarCache := &TarCache{
 		fileChannel:    fileChannel,
 		rootDirectory:  rootDirectory,
@@ -81,7 +89,7 @@ func newTarfile() *tarfile {
 func (t *TarCache) ListenForever() {
 	channelOpen := true
 	for channelOpen {
-		var dataFile *fileinfo.LocalDataFile
+		var dataFile *LocalDataFile
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
@@ -96,7 +104,7 @@ func (t *TarCache) ListenForever() {
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
-func (t *TarCache) add(file *fileinfo.LocalDataFile) {
+func (t *TarCache) add(file *LocalDataFile) {
 	contents, err := ioutil.ReadFile(file.AbsoluteFileName)
 	if err != nil {
 		log.Printf("Could not read %s (error: %q)\n", file.AbsoluteFileName, err)
