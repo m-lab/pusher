@@ -25,7 +25,7 @@ func TestUploading(t *testing.T) {
 	namer := &testNamer{
 		newName: fileName,
 	}
-	uploader, err := New("mlab-testing", "archive-mlab-testing", namer)
+	uploader, err := Create("mlab-testing", "archive-mlab-testing", namer)
 	if err != nil {
 		t.Fatal("Could not make uploader:", err)
 	}

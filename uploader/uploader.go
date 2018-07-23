@@ -1,3 +1,4 @@
+// Package uploader provides a tool for saving byte buffers to Google Cloud Storage.
 package uploader
 
 import (
@@ -24,8 +25,9 @@ type uploader struct {
 	bucketName string
 }
 
-// New creates and returns a new object that implements Uploader.
-func New(project string, bucket string, namer namer.Namer) (Uploader, error) {
+// Create and return a new object that implements Uploader.
+func Create(project string, bucket string, namer namer.Namer) (Uploader, error) {
+	// TODO: add timeouts and error handling to this.
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {

@@ -32,7 +32,7 @@ func init() {
 func main() {
 	flag.Parse()
 	namer := namer.New(*experiment, *node, *site)
-	uploader, err := uploader.New(*project, *bucket, namer)
+	uploader, err := uploader.Create(*project, *bucket, namer)
 	if err != nil {
 		log.Fatal("Could not create uploader:", err)
 	}

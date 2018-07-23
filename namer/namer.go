@@ -1,3 +1,4 @@
+// Package namer provides a tool for creating archival filenames from a timestamp.
 package namer
 
 import (

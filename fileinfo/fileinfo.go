@@ -1,3 +1,4 @@
+// Package fileinfo exists to provide a struct that is used in many parts of pusher.
 package fileinfo
 
 import (

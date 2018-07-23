@@ -1,3 +1,6 @@
+// Package tarcache supports the creation and running of a pipeline that
+// receives files, tars up the contents, and uploads everything when the tarfile
+// is big enough or the contents are old enough.
 package tarcache
 
 import (

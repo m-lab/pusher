@@ -1,16 +1,16 @@
+// Package finder provides a `find`-like interface to file discovery. In the
+// fullness of time, we expect Pusher to use inotify, and so this more
+// IO-intensive approach will not be needed and this code will be deleted.
 package finder
 
-// The finder package provides a `find`-like interface to file discovery.  In the fullness of
-// time, we expect Pusher to use inotify, and so this more IO-intensive
-// approach will not be needed and this code will be deleted.
-
 import (
-	"github.com/m-lab/pusher/fileinfo"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/m-lab/pusher/fileinfo"
 )
 
 // FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
