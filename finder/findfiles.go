@@ -16,7 +16,9 @@ import (
 // FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
 func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDataFile, error) {
-	eligibleFiles := make([]*tarcache.LocalDataFile, 0)
+	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
+	// TODO: Choose a better default.
+	eligibleFiles := make([]*tarcache.LocalDataFile, 0, 1024)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
