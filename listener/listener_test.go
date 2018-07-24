@@ -80,11 +80,6 @@ func TestListenInSubdir(t *testing.T) {
 	go l.ListenForever()
 	os.MkdirAll(dir+"/subdir/sub1/sub2", 0777)
 	// Sleep to allow the subdirectory listener to be established.
-	//
-	// There is a race condition in the library, where it is possible to create a
-	// directory and then a file in the directory before the recursive listener has
-	// been established. We work around this bug by having a "cleanup" job that
-	// adds all the old files.
 	time.Sleep(100 * time.Millisecond)
 	ioutil.WriteFile(dir+"/subdir/sub1/sub2/testfile", []byte("testdata"), 0777)
 	ldf := <-ldfChan

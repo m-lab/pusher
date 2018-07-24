@@ -22,7 +22,7 @@ var (
 	node            = flag.String("node", "mlab5", "The name of the node at the site")
 	site            = flag.String("site", "lga0t", "The name of the mlab site for the node")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
-	maxFileAge      = flag.Duration("max_file_age", time.Duration(8)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
+	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 )

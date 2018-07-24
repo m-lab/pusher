@@ -25,6 +25,7 @@ func Create(directory string, fileChannel chan<- *tarcache.LocalDataFile) (*List
 		stopper:     make(chan int),
 		fileChannel: fileChannel,
 	}
+	// "..."" is the special syntax that means "also watch all subdirectories".
 	if err := notify.Watch(directory+"/...", listener.events, notify.InCloseWrite|notify.InMovedTo); err != nil {
 		return nil, err
 	}
