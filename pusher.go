@@ -47,6 +47,9 @@ func main() {
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
+	if err != nil {
+		log.Fatal("Could not create the listener:", err)
+	}
 	defer l.Stop()
 	go l.ListenForever()
 
