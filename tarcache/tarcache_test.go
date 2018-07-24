@@ -62,11 +62,13 @@ func TestAdd(t *testing.T) {
 		Info:             fileStat,
 	}
 	tarCache.add(&tinyFile)
+	// Add the tiny file a second time, which should not do anything at all.
+	tarCache.add(&tinyFile)
 	if tarCache.currentTarfile.contents.Len() == 0 {
 		t.Errorf("The file should be of nonzero length and is not (%d == 0)", tarCache.currentTarfile.contents.Len())
 	}
 	if len(tarCache.currentTarfile.members) != 1 {
-		t.Errorf("The tarCache should have a member and it does not")
+		t.Errorf("The tarCache should have just one  member and it has %d", len(tarCache.currentTarfile.members))
 	}
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)

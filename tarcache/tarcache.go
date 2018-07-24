@@ -41,10 +41,14 @@ type TarCache struct {
 	uploader       uploader.Uploader
 }
 
+// Empty structs take up zero bytes, perfect for the value type when using a map as a set.
+type nothing = struct{}
+
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    <-chan time.Time
 	members    []*LocalDataFile
+	memberSet  map[string]nothing
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -79,6 +83,7 @@ func newTarfile() *tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
+		memberSet:  make(map[string]nothing),
 	}
 }
 
@@ -105,6 +110,11 @@ func (t *TarCache) ListenForever() {
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
 func (t *TarCache) add(file *LocalDataFile) {
+	tf := t.currentTarfile
+	if _, present := tf.memberSet[file.AbsoluteFileName]; present {
+		log.Printf("Not adding %q to the tarfile a second time.\n", file.AbsoluteFileName)
+		return
+	}
 	contents, err := ioutil.ReadFile(file.AbsoluteFileName)
 	if err != nil {
 		log.Printf("Could not read %s (error: %q)\n", file.AbsoluteFileName, err)
@@ -119,7 +129,6 @@ func (t *TarCache) add(file *LocalDataFile) {
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable, call log.Fatal, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	tf := t.currentTarfile
 	if err = tf.tarWriter.WriteHeader(header); err != nil {
 		log.Fatalf("Could not write the tarfile header for %s (error: %q)\n", file.AbsoluteFileName, err)
 	}
@@ -138,6 +147,7 @@ func (t *TarCache) add(file *LocalDataFile) {
 		tf.timeout = timer.C
 	}
 	tf.members = append(tf.members, file)
+	tf.memberSet[file.AbsoluteFileName] = nothing{}
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.uploadAndDelete()
 	}
