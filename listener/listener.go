@@ -7,9 +7,23 @@ import (
 	"log"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/rjeczalik/notify"
 )
+
+// Set up prometheus metrics.
+var (
+	pusherFileEventCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pusher_file_event_count",
+		Help: "How many file events have we heard.",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(pusherFileEventCount)
+}
 
 // Listener provides a FileChannel on which to listen for new files and
 type Listener struct {
@@ -45,6 +59,7 @@ func (l *Listener) ListenForever() {
 			notify.Stop(l.events)
 			return
 		case ei := <-l.events:
+			pusherFileEventCount.Inc()
 			ldf, err := convertEventInfoToLocalDataFile(ei)
 			if err != nil {
 				log.Printf("Could not create file for event: %v\n", ei)
