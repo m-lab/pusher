@@ -2,6 +2,7 @@ package util
 
 import (
 	"flag"
+	"log"
 	"os"
 	"testing"
 )
@@ -69,5 +70,26 @@ func TestArgsFromEnvWontOverride(t *testing.T) {
 	}
 	if *flagVal != "value_from_cmdline" {
 		t.Error("Bad flag value", *flagVal)
+	}
+}
+
+func TestArgsFromEnvWithBadEnv(t *testing.T) {
+	flagSet := flag.NewFlagSet("test_flags", flag.ContinueOnError)
+	flagVal := flagSet.Int("pusher_util_test_var", 1, "")
+	oldVal, ok := os.LookupEnv("PUSHER_UTIL_TEST_VAR")
+	os.Setenv("PUSHER_UTIL_TEST_VAR", "bad_value_from_env")
+	defer func() {
+		if ok {
+			os.Setenv("PUSHER_UTIL_TEST_VAR", oldVal)
+		} else {
+			os.Unsetenv("PUSHER_UTIL_TEST_VAR")
+		}
+	}()
+	flagSet.Parse([]string{""})
+	err := ArgsFromEnv(flagSet)
+	if err == nil {
+		t.Error("Should have had an error")
+	} else {
+		log.Printf("After an invalid Set() (err=%q), the flag is %d\n", err, *flagVal)
 	}
 }
