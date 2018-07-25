@@ -33,7 +33,14 @@ func (b ByteCount) Get() interface{} {
 // KB/MB/GB form, instead electing to just keep everything expanded even if it
 // could be expressed more succinctly.
 func (b ByteCount) String() string {
-	return fmt.Sprintf("%d", b)
+	if b%Gigabyte == 0 {
+		return fmt.Sprintf("%dGB", b/Gigabyte)
+	} else if b%Megabyte == 0 {
+		return fmt.Sprintf("%dMB", b/Megabyte)
+	} else if b%Kilobyte == 0 {
+		return fmt.Sprintf("%dKB", b/Kilobyte)
+	}
+	return fmt.Sprintf("%dB", b)
 }
 
 // Set is used by the Flag library to turn a string into a ByteCount.  This

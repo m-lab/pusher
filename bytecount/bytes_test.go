@@ -41,8 +41,23 @@ func TestByteParsing(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	if ByteCount(1).String() != "1" {
-		t.Error("1 byte doesn't turn into the string 1")
+	tests := []struct {
+		in  ByteCount
+		out string
+	}{
+		{out: "1B", in: ByteCount(1 * Byte)},
+		{out: "2KB", in: ByteCount(2 * Kilobyte)},
+		{out: "3MB", in: ByteCount(3 * Megabyte)},
+		{out: "4GB", in: ByteCount(4 * Gigabyte)},
+		{out: "5B", in: ByteCount(5)},
+		{out: "6KB", in: ByteCount(6000)},
+		{out: "7MB", in: ByteCount(7000000)},
+		{out: "8GB", in: ByteCount(8000000000)},
+	}
+	for _, test := range tests {
+		if test.in.String() != test.out {
+			t.Errorf("Bytecount(%d).String() returned should have returned %s (actually returned %q)", test.in, test.out, test.in.String())
+		}
 	}
 }
 
