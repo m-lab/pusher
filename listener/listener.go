@@ -19,10 +19,18 @@ var (
 		Name: "pusher_file_event_count",
 		Help: "How many file events have we heard.",
 	})
+	pusherFileEventErrorCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_file_event_error_count",
+			Help: "How many file events have we heard.",
+		},
+		[]string{"type"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(pusherFileEventCount)
+	prometheus.MustRegister(pusherFileEventErrorCount)
 }
 
 // Listener provides a FileChannel on which to listen for new files and
@@ -75,10 +83,12 @@ func convertEventInfoToLocalDataFile(ei notify.EventInfo) (*tarcache.LocalDataFi
 	path := ei.Path()
 	file, err := os.Open(path)
 	if err != nil {
+		pusherFileEventErrorCount.WithLabelValues("open").Inc()
 		return nil, err
 	}
 	info, err := file.Stat()
 	if err != nil {
+		pusherFileEventErrorCount.WithLabelValues("stat").Inc()
 		return nil, err
 	}
 	return &tarcache.LocalDataFile{
