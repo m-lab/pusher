@@ -25,10 +25,13 @@ var (
 		Name: "pusher_tarfiles_created_total",
 		Help: "The number of tarfiles the pusher has created",
 	})
-	pusherTarfilesUploaded = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_tarfiles_uploaded_total",
-		Help: "The number of tarfiles the pusher has uploaded",
-	})
+	pusherTarfilesUploaded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_tarfiles_uploaded_total",
+			Help: "The number of tarfiles the pusher has uploaded",
+		},
+		[]string{"reason"},
+	)
 	pusherFilesPerTarfile = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pusher_files_per_tarfile",
 		Help:    "The number of files in each tarfile the pusher has uploaded",
@@ -179,6 +182,7 @@ func (t *TarCache) ListenForever() {
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
+			pusherTarfilesUploaded.WithLabelValues("age_threshold_met").Inc()
 		case dataFile, channelOpen = <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
@@ -237,13 +241,13 @@ func (t *TarCache) add(file *LocalDataFile) {
 	pusherCurrentTarfileSize.Set(float64(tf.contents.Len()))
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.uploadAndDelete()
+		pusherTarfilesUploaded.WithLabelValues("size_threshold_met").Inc()
 	}
 }
 
 // Upload the buffer, delete the component files, start a new buffer.
 func (t *TarCache) uploadAndDelete() {
 	t.currentTarfile.uploadAndDelete(t.uploader)
-	pusherTarfilesUploaded.Inc()
 	t.currentTarfile = newTarfile()
 	pusherCurrentTarfileFileCount.Set(0)
 	pusherCurrentTarfileSize.Set(0)
