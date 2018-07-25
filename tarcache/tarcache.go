@@ -16,6 +16,7 @@ import (
 
 	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/uploader"
+	"github.com/m-lab/pusher/util"
 )
 
 // TODO: All calls to log.Print* should have corresponding prometheus counters
@@ -41,14 +42,11 @@ type TarCache struct {
 	uploader       uploader.Uploader
 }
 
-// Empty structs take up zero bytes, perfect for the value type when using a map as a set.
-type nothing = struct{}
-
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    <-chan time.Time
 	members    []*LocalDataFile
-	memberSet  map[string]nothing
+	memberSet  map[string]util.Nothing
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -83,7 +81,7 @@ func newTarfile() *tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[string]nothing),
+		memberSet:  make(map[string]util.Nothing),
 	}
 }
 
@@ -147,7 +145,7 @@ func (t *TarCache) add(file *LocalDataFile) {
 		tf.timeout = timer.C
 	}
 	tf.members = append(tf.members, file)
-	tf.memberSet[file.AbsoluteFileName] = nothing{}
+	tf.memberSet[file.AbsoluteFileName] = util.Nothing{}
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.uploadAndDelete()
 	}
