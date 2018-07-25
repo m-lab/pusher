@@ -12,6 +12,7 @@ import (
 	"github.com/m-lab/pusher/namer"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
+	"github.com/m-lab/pusher/util"
 )
 
 var (
@@ -35,6 +36,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+	util.ArgsFromEnv(flag.CommandLine)
 
 	// Set up the upload system.
 	namer := namer.New(*experiment, *node, *site)
