@@ -16,7 +16,6 @@ import (
 
 	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/uploader"
-	"github.com/m-lab/pusher/util"
 )
 
 // TODO: All calls to log.Print* should have corresponding prometheus counters
@@ -46,7 +45,7 @@ type TarCache struct {
 type tarfile struct {
 	timeout    <-chan time.Time
 	members    []*LocalDataFile
-	memberSet  map[string]util.Nothing
+	memberSet  map[string]struct{}
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -81,7 +80,7 @@ func newTarfile() *tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[string]util.Nothing),
+		memberSet:  make(map[string]struct{}),
 	}
 }
 
@@ -145,7 +144,7 @@ func (t *TarCache) add(file *LocalDataFile) {
 		tf.timeout = timer.C
 	}
 	tf.members = append(tf.members, file)
-	tf.memberSet[file.AbsoluteFileName] = util.Nothing{}
+	tf.memberSet[file.AbsoluteFileName] = struct{}{}
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.uploadAndDelete()
 	}
