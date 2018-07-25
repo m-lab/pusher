@@ -28,10 +28,9 @@ func (b ByteCount) Get() interface{} {
 	return b
 }
 
-// String is used by the Flag library to turn the value into a string.  For
-// ease of implementation we avoid attempting to turn the string into a short
-// KB/MB/GB form, instead electing to just keep everything expanded even if it
-// could be expressed more succinctly.
+// String is used by the Flag library to turn the value into a string.  Because
+// we output bytecounts in our logs, it is worth it to convert them into
+// readable values.
 func (b ByteCount) String() string {
 	if b%Gigabyte == 0 {
 		return fmt.Sprintf("%dGB", b/Gigabyte)
