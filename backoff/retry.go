@@ -16,16 +16,21 @@ var (
 			Name: "pusher_retries_total",
 			Help: "The number of times we have retried the function",
 		},
-		[]string{"function "},
+		[]string{"function"},
 	)
 	pusherMaxRetries = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_max_retries_total",
 			Help: "The number of times we have hit the max backoff time when retrying the function",
 		},
-		[]string{"function "},
+		[]string{"function"},
 	)
 )
+
+func init() {
+	prometheus.MustRegister(pusherRetries)
+	prometheus.MustRegister(pusherMaxRetries)
+}
 
 // Retry retries calling a function until the function returns a non-nil error.
 // It increments two prometheus counters to keep track of how many errors it has
