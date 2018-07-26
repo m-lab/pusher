@@ -9,15 +9,17 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/m-lab/pusher/bytecount"
+	"github.com/m-lab/pusher/backoff"
 	"github.com/m-lab/pusher/uploader"
+
+	"github.com/m-lab/go/bytecount"
+	r "github.com/m-lab/go/runtimeext"
 )
 
 var (
@@ -102,8 +104,6 @@ func init() {
 	prometheus.MustRegister(pusherBytesPerFile)
 	prometheus.MustRegister(pusherTarfileDuplicateFiles)
 	prometheus.MustRegister(pusherFileReadErrors)
-	prometheus.MustRegister(pusherTarfilesUploadRetry)
-	prometheus.MustRegister(pusherTarfilesUploadMaxRetry)
 	prometheus.MustRegister(pusherFilesAdded)
 	prometheus.MustRegister(pusherFilesRemoved)
 	prometheus.MustRegister(pusherFileRemoveErrors)
@@ -223,21 +223,16 @@ func (t *TarCache) add(file *LocalDataFile) {
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,
-	// so we treat them as unrecoverable, call log.Fatal, and hope that the errors
+	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	if err = tf.tarWriter.WriteHeader(header); err != nil {
-		log.Fatalf("Could not write the tarfile header for %s (error: %q)\n", file.AbsoluteFileName, err)
-	}
-	if _, err = tf.tarWriter.Write(contents); err != nil {
-		log.Fatalf("Could not write the tarfile contents for %s (error: %q)\n", file.AbsoluteFileName, err)
-	}
+	r.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %s", file.AbsoluteFileName)
+	_, err = tf.tarWriter.Write(contents)
+	r.Must(err, "Could not write the tarfile contents for %s", file.AbsoluteFileName, err)
+
 	// Flush the data so that our in-memory filesize is accurate.
-	if err = tf.tarWriter.Flush(); err != nil {
-		log.Fatalf("Could not flush the tarWriter (error: %q)\n", err)
-	}
-	if err = tf.gzipWriter.Flush(); err != nil {
-		log.Fatalf("Could not flush the gzipWriter (error: %q)\n", err)
-	}
+	r.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
+	r.Must(tf.gzipWriter.Flush(), "Could not flush the gzipWriter")
+
 	if len(tf.members) == 0 {
 		timer := time.NewTimer(t.ageThreshold)
 		tf.timeout = timer.C
@@ -270,20 +265,13 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 	t.gzipWriter.Close()
 	pusherFilesPerTarfile.Observe(float64(len(t.members)))
 	pusherBytesPerTarfile.Observe(float64(t.contents.Len()))
-	backoff := time.Duration(100) * time.Millisecond
-	for err := uploader.Upload(t.contents); err != nil; err = uploader.Upload(t.contents) {
-		pusherTarfilesUploadRetry.Inc()
-		log.Printf("Error uploading: %q, will retry after %s\n", err, backoff.String())
-		time.Sleep(backoff)
-		backoff = time.Duration(backoff.Seconds()*2) * time.Second
-		// The maximum retry interval is every five minutes. Once five minutes has
-		// been reached, wait for five minutes plus a random number of seconds.
-		if backoff.Minutes() > 5 {
-			pusherTarfilesUploadMaxRetry.Inc()
-			log.Printf("Maximim upload retry backoff has been reached.")
-			backoff = time.Duration(300+(rand.Int()%60)) * time.Second
-		}
-	}
+	// Try to upload until the upload succeeds.
+	backoff.Retry(
+		func() error { return uploader.Upload(t.contents) },
+		time.Duration(100)*time.Millisecond,
+		time.Duration(5)*time.Minute,
+		"upload",
+	)
 	pusherTarfilesUploaded.Inc()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
