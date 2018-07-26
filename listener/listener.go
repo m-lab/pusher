@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/rjeczalik/notify"
@@ -15,14 +16,17 @@ import (
 
 // Set up prometheus metrics.
 var (
-	pusherFileEventCount = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_file_event_count",
-		Help: "How many file events have we heard.",
-	})
+	pusherFileEventCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_file_events_total",
+			Help: "How many file events have we heard.",
+		},
+		[]string{"type"},
+	)
 	pusherFileEventErrorCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "pusher_file_event_error_count",
-			Help: "How many file events have we heard.",
+			Name: "pusher_file_event_errors_total",
+			Help: "How many file event errors we have encountered.",
 		},
 		[]string{"type"},
 	)
@@ -67,7 +71,15 @@ func (l *Listener) ListenForever() {
 			notify.Stop(l.events)
 			return
 		case ei := <-l.events:
-			pusherFileEventCount.Inc()
+			source := "unknown"
+			sysinfo := ei.Sys().(*unix.InotifyEvent)
+			if sysinfo.Mask&unix.IN_CLOSE_WRITE != 0 {
+				source = "closewrite"
+			}
+			if sysinfo.Mask&unix.IN_MOVED_TO != 0 {
+				source = "movedto"
+			}
+			pusherFileEventCount.WithLabelValues(source).Inc()
 			ldf, err := convertEventInfoToLocalDataFile(ei)
 			if err != nil {
 				log.Printf("Could not create file for event: %v\n", ei)

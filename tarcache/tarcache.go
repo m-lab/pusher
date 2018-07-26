@@ -25,13 +25,17 @@ var (
 		Name: "pusher_tarfiles_created_total",
 		Help: "The number of tarfiles the pusher has created",
 	})
-	pusherTarfilesUploaded = prometheus.NewCounterVec(
+	pusherTarfilesUploadCalls = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "pusher_tarfiles_uploaded_total",
-			Help: "The number of tarfiles the pusher has uploaded",
+			Name: "pusher_tarfiles_upload_calls_total",
+			Help: "The number of times upload has been called",
 		},
 		[]string{"reason"},
 	)
+	pusherTarfilesUploaded = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pusher_tarfiles_successful_uploads_total",
+		Help: "The number of tarfiles the pusher has uploaded",
+	})
 	pusherFilesPerTarfile = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pusher_files_per_tarfile",
 		Help:    "The number of files in each tarfile the pusher has uploaded",
@@ -80,7 +84,7 @@ var (
 		Help: "The number of times we tried to upload a tarfile with nothing in it",
 	})
 	pusherCurrentTarfileFileCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pusher_current_tarfile_file_count",
+		Name: "pusher_current_tarfile_files",
 		Help: "The number of files in the current tarfile",
 	})
 	pusherCurrentTarfileSize = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -91,6 +95,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(pusherTarfilesCreated)
+	prometheus.MustRegister(pusherTarfilesUploadCalls)
 	prometheus.MustRegister(pusherTarfilesUploaded)
 	prometheus.MustRegister(pusherFilesPerTarfile)
 	prometheus.MustRegister(pusherBytesPerTarfile)
@@ -163,6 +168,9 @@ func newTarfile() *tarfile {
 	buffer := &bytes.Buffer{}
 	gzipWriter := gzip.NewWriter(buffer)
 	tarWriter := tar.NewWriter(gzipWriter)
+	// If you create more than one tarfile, then these gauges will get confused and confusing.
+	pusherCurrentTarfileFileCount.Set(0)
+	pusherCurrentTarfileSize.Set(0)
 	return &tarfile{
 		contents:   buffer,
 		tarWriter:  tarWriter,
@@ -182,7 +190,7 @@ func (t *TarCache) ListenForever() {
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
-			pusherTarfilesUploaded.WithLabelValues("age_threshold_met").Inc()
+			pusherTarfilesUploadCalls.WithLabelValues("age_threshold_met").Inc()
 		case dataFile, channelOpen = <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
@@ -241,7 +249,7 @@ func (t *TarCache) add(file *LocalDataFile) {
 	pusherCurrentTarfileSize.Set(float64(tf.contents.Len()))
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
 		t.uploadAndDelete()
-		pusherTarfilesUploaded.WithLabelValues("size_threshold_met").Inc()
+		pusherTarfilesUploadCalls.WithLabelValues("size_threshold_met").Inc()
 	}
 }
 
@@ -249,8 +257,6 @@ func (t *TarCache) add(file *LocalDataFile) {
 func (t *TarCache) uploadAndDelete() {
 	t.currentTarfile.uploadAndDelete(t.uploader)
 	t.currentTarfile = newTarfile()
-	pusherCurrentTarfileFileCount.Set(0)
-	pusherCurrentTarfileSize.Set(0)
 }
 
 // Upload the contents of the tarfile and then delete the component files.
@@ -278,7 +284,12 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 			backoff = time.Duration(300+(rand.Int()%60)) * time.Second
 		}
 	}
+	pusherTarfilesUploaded.Inc()
 	for _, file := range t.members {
+		// If the file can't be removed, then it either was already removed or the
+		// remove call failed for some unknown reason (permissions, maybe?). If the
+		// file still exists after this attempted remove, then it should eventually
+		// get picked up by the finder.
 		if err := os.Remove(file.AbsoluteFileName); err == nil {
 			pusherFilesRemoved.Inc()
 		} else {

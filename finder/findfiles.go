@@ -29,15 +29,15 @@ import (
 // Set up the prometheus metrics.
 var (
 	pusherFinderRuns = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_finder_run_count",
+		Name: "pusher_finder_runs_total",
 		Help: "How many times has FindFiles been called",
 	})
 	pusherFinderFiles = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_finder_files_found",
+		Name: "pusher_finder_files_found_total",
 		Help: "How many files has FindFiles found",
 	})
 	pusherFinderBytes = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_finder_bytes_found",
+		Name: "pusher_finder_bytes_found_total",
 		Help: "How many bytes has FindFiles found",
 	})
 )
