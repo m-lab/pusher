@@ -6,10 +6,12 @@
 package bytecount
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
+
+	"github.com/m-lab/pusher/util"
 )
 
 // ByteCount holds filesizes and the like.
@@ -45,31 +47,40 @@ func (b ByteCount) String() string {
 // Set is used by the Flag library to turn a string into a ByteCount.  This
 // parses on the quick and dirty using regular expressions.
 func (b *ByteCount) Set(s string) error {
-	bytesRegexp := regexp.MustCompile(`^(?P<quantity>[0-9]+)(?P<units>[KMG]?B?)?$`)
+	bytesRegexpStr := `^(?P<quantity>[0-9]+)(?P<units>[KMG]?B?)?$`
+	bytesRegexp := regexp.MustCompile(bytesRegexpStr)
 	if !bytesRegexp.MatchString(s) {
 		return fmt.Errorf("Invalid size format: %q", s)
 	}
 	for _, submatches := range bytesRegexp.FindAllStringSubmatchIndex(s, -1) {
 		quantityBytes := bytesRegexp.ExpandString([]byte{}, "$quantity", s, submatches)
 		quantityInt, err := strconv.ParseInt(string(quantityBytes), 10, 64)
-		if err != nil {
-			return err
-		}
+		// If this check ever fails, it represents a bug in the code rather than a
+		// normal response to bad input. A richer compiler would be able to prove
+		// that this check always passes. Regrettably, that compiler does not exist.
+		util.Must(err, "The string %q passed the regexp %q but did not have an int we could parse. This is a bug.", s, bytesRegexpStr)
 		quantity := ByteCount(quantityInt)
 		unitsBytes := bytesRegexp.ExpandString([]byte{}, "$units", s, submatches)
 		units := Byte
+		err = errors.New("No units found")
 		switch string(unitsBytes) {
 		case "B", "":
 			units = Byte
+			err = nil
 		case "KB", "K":
 			units = Kilobyte
+			err = nil
 		case "MB", "M":
 			units = Megabyte
+			err = nil
 		case "GB", "G":
 			units = Gigabyte
-		default:
-			log.Fatalf("The string %q passed the regexp %q but did not have units we recognize. There is an error in the regexp or the code.", s, bytesRegexp.String())
+			err = nil
 		}
+		// If this check ever fails, it represents a bug in the code rather than a
+		// normal response to bad input. A richer compiler would be able to prove
+		// that this check always passes. Regrettably, that compiler does not exist.
+		util.Must(err, "The string %q passed the regexp %q but did not have units we could parse. This is a bug.", s, bytesRegexpStr)
 		*b = quantity * units
 	}
 	return nil

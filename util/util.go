@@ -39,3 +39,24 @@ func ArgsFromEnv(flagSet *flag.FlagSet) error {
 	})
 	return err
 }
+
+// Must will log.Fatal if passed a non-nil error. The fatal message is
+// specified as the prefix argument. If any further args are passed, then the
+// prefix will be treated as a format string.
+//
+// The main purpose of this function is to turn the common pattern of:
+//    err := Func()
+//    if err != nil {
+//        log.Fatalf("Helpful message (error: %v)", err)
+//    }
+// into a simplified pattern of:
+//    Must(Func(), "Helpful message")
+func Must(err error, prefix string, args ...interface{}) {
+	if err != nil {
+		suffix := fmt.Sprintf("(error: %v)", err)
+		if len(args) != 0 {
+			prefix = fmt.Sprintf(prefix, args...)
+		}
+		log.Fatal(prefix, suffix)
+	}
+}

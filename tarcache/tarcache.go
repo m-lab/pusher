@@ -18,6 +18,7 @@ import (
 
 	"github.com/m-lab/pusher/bytecount"
 	"github.com/m-lab/pusher/uploader"
+	"github.com/m-lab/pusher/util"
 )
 
 var (
@@ -223,21 +224,19 @@ func (t *TarCache) add(file *LocalDataFile) {
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,
-	// so we treat them as unrecoverable, call log.Fatal, and hope that the errors
+	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	if err = tf.tarWriter.WriteHeader(header); err != nil {
-		log.Fatalf("Could not write the tarfile header for %s (error: %q)\n", file.AbsoluteFileName, err)
-	}
-	if _, err = tf.tarWriter.Write(contents); err != nil {
-		log.Fatalf("Could not write the tarfile contents for %s (error: %q)\n", file.AbsoluteFileName, err)
-	}
+	util.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %s", file.AbsoluteFileName)
+	_, err = tf.tarWriter.Write(contents)
+	util.Must(err, "Could not write the tarfile contents for %s", file.AbsoluteFileName, err)
+
 	// Flush the data so that our in-memory filesize is accurate.
-	if err = tf.tarWriter.Flush(); err != nil {
-		log.Fatalf("Could not flush the tarWriter (error: %q)\n", err)
+	if err := tf.tarWriter.Flush(); err != nil {
+		log.Fatalf("Could not flush the tarWriter (error: %v)\n", err)
 	}
-	if err = tf.gzipWriter.Flush(); err != nil {
-		log.Fatalf("Could not flush the gzipWriter (error: %q)\n", err)
-	}
+	util.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
+	util.Must(tf.gzipWriter.Flush(), "Could not flush the gzipWriter")
+
 	if len(tf.members) == 0 {
 		timer := time.NewTimer(t.ageThreshold)
 		tf.timeout = timer.C

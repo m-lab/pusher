@@ -43,17 +43,14 @@ func main() {
 	// Set up the upload system.
 	namer := namer.New(*experiment, *node, *site)
 	uploader, err := uploader.Create(*project, *bucket, namer)
-	if err != nil {
-		log.Fatal("Could not create uploader:", err)
-	}
+	util.Must(err, "Could not create uploader")
+
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
 	go tarCache.ListenForever()
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
-	if err != nil {
-		log.Fatal("Could not create the listener:", err)
-	}
+	util.Must(err, "Could not create listener")
 	defer l.Stop()
 	go l.ListenForever()
 
