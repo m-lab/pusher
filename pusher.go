@@ -6,13 +6,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m-lab/pusher/bytecount"
+	"github.com/m-lab/go/bytecount"
+	flagx "github.com/m-lab/go/flagext"
+	r "github.com/m-lab/go/runtimeext"
+
 	"github.com/m-lab/pusher/finder"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/namer"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
-	"github.com/m-lab/pusher/util"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -38,19 +40,19 @@ func init() {
 func main() {
 	// We want to get flag values from the environment or from the command-line.
 	flag.Parse()
-	util.ArgsFromEnv(flag.CommandLine)
+	flagx.ArgsFromEnv(flag.CommandLine)
 
 	// Set up the upload system.
 	namer := namer.New(*experiment, *node, *site)
 	uploader, err := uploader.Create(*project, *bucket, namer)
-	util.Must(err, "Could not create uploader")
+	r.Must(err, "Could not create uploader")
 
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
 	go tarCache.ListenForever()
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
-	util.Must(err, "Could not create listener")
+	r.Must(err, "Could not create listener")
 	defer l.Stop()
 	go l.ListenForever()
 

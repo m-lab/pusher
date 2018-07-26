@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m-lab/pusher/bytecount"
+	"github.com/m-lab/go/bytecount"
 )
 
 type fakeUploader struct {
@@ -187,5 +187,64 @@ func TestTimer(t *testing.T) {
 	time.Sleep(time.Duration(250 * time.Millisecond))
 	if uploader.calls != 1 {
 		t.Error("uploader.calls should be one ", uploader.calls)
+	}
+}
+
+func TestEmptyUpload(t *testing.T) {
+	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestEmptyUpload")
+	defer os.RemoveAll(tempdir)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	uploader := fakeUploader{}
+	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache.uploadAndDelete()
+	if uploader.calls != 0 {
+		t.Error("uploader.calls should be zero ", uploader.calls)
+	}
+
+	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	// Add the small file, which should not trigger an upload.
+	fileObject, _ := os.Open(tempdir + "/tinyfile")
+	fileStat, _ := fileObject.Stat()
+	tinyFile := LocalDataFile{
+		AbsoluteFileName: tempdir + "/tinyfile",
+		Info:             fileStat,
+	}
+	tarCache.add(&tinyFile)
+
+	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
+		t.Errorf("Could not remove the tinyfile: %v", err)
+	}
+
+	// This should not crash, even though we removed the tinyfile out from underneath the uploader.
+	tarCache.uploadAndDelete()
+}
+
+func TestUnreadableFile(t *testing.T) {
+	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestUnreadableFile")
+	defer os.RemoveAll(tempdir)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	uploader := fakeUploader{}
+	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	// Add the small file, which should not trigger an upload.
+	fileObject, _ := os.Open(tempdir + "/tinyfile")
+	fileStat, _ := fileObject.Stat()
+	tinyFile := LocalDataFile{
+		AbsoluteFileName: tempdir + "/tinyfile",
+		Info:             fileStat,
+	}
+	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
+		t.Errorf("Could not remove the tinyfile: %v", err)
+	}
+	// This should not crash, even though we removed the tinyfile out from underneath the uploader.
+	tarCache.add(&tinyFile)
+	if len(tarCache.currentTarfile.members) != 0 {
+		t.Error("We added a nonexistent file to the tarCache.")
 	}
 }
