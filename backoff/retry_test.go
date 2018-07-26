@@ -22,4 +22,7 @@ func TestRetry(t *testing.T) {
 		time.Duration(10)*time.Millisecond,
 		"test",
 	)
+	if count != 5 {
+		t.Errorf("Retried %d times instead of 5", count)
+	}
 }
