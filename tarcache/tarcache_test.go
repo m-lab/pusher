@@ -51,6 +51,7 @@ func TestAdd(t *testing.T) {
 	uploader := fakeUploader{
 		requestedRetries: 1,
 	}
+	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	if tarCache.currentTarfile.contents.Len() != 0 {
 		t.Errorf("The file should be of zero length and is not (%d != 0)", tarCache.currentTarfile.contents.Len())
@@ -209,6 +210,7 @@ func TestEmptyUpload(t *testing.T) {
 		return
 	}
 	uploader := fakeUploader{}
+	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	tarCache.uploadAndDelete()
 	if uploader.calls != 0 {
@@ -243,6 +245,7 @@ func TestUnreadableFile(t *testing.T) {
 		return
 	}
 	uploader := fakeUploader{}
+	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
