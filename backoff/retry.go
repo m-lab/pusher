@@ -4,6 +4,7 @@
 package backoff
 
 import (
+	"log"
 	"math/rand"
 	"time"
 
@@ -34,19 +35,20 @@ func init() {
 
 // Retry retries calling a function until the function returns a non-nil error.
 // It increments two prometheus counters to keep track of how many errors it has
-// seen, one for all errors, and just when the max error count has been reached.
+// seen: one for all errors, and just when the max error count has been reached.
 // The counters are indexed by the passed-in label. For best results, make sure
 // that maxBackoff > 2*initialBackoff.
 func Retry(f func() error, initialBackoff, maxBackoff time.Duration, label string) {
 	waitTime := initialBackoff
 	for err := f(); err != nil; err = f() {
-		pusherRetries.WithLabelValues(label).Inc()
-		waitTime *= 2
 		if waitTime > maxBackoff {
 			pusherMaxRetries.WithLabelValues(label).Inc()
 			ns := maxBackoff.Nanoseconds()
 			waitTime = time.Duration((ns/2)+rand.Int63n(ns/2)) * time.Nanosecond
 		}
+		log.Printf("Call to %s failed (error: %q), will retry after %s", label, err, waitTime.String())
+		pusherRetries.WithLabelValues(label).Inc()
 		time.Sleep(waitTime)
+		waitTime *= 2
 	}
 }
