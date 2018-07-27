@@ -9,3 +9,5 @@ Push data from nodes to cloud storage.  This is meant to be a sidecar service
 for experiments deployed on [M-Lab](https://www.measurementlab.net).
 Experiments write data to a particular directory and this system watches that
 directory and tars, compresses, and uploads the data files.
+
+Available as a container in [measurementlab/pusher](https://hub.docker.com/r/measurementlab/pusher/).
