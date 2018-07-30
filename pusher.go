@@ -26,7 +26,7 @@ var (
 	bucket          = flag.String("bucket", "scraper-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
 	node            = flag.String("node", "mlab5", "The name of the node at the site")
-	site            = flag.String("site", "lga0t", "The name of the mlab site for the node")
+	site            = flag.String("site", "abc0t", "The name of the mlab site for the node")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
