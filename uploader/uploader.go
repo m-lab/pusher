@@ -34,10 +34,6 @@ func Create(project string, bucket string, namer namer.Namer) (Uploader, error) 
 		return nil, err
 	}
 	bucketHandle := client.Bucket(bucket)
-	// Check if the bucket exists
-	if _, err := bucketHandle.Attrs(ctx); err != nil {
-		return nil, err
-	}
 	return &uploader{
 		context:    ctx,
 		namer:      namer,
@@ -53,7 +49,7 @@ func (u *uploader) Upload(tarBuffer *bytes.Buffer) error {
 	writer := object.NewWriter(u.context)
 	_, err := tarBuffer.WriteTo(writer)
 	if err != nil {
-		return fmt.Errorf("Could not write to gs://%s%s (%v)", u.bucketName, name, err)
+		return fmt.Errorf("Could not write to gs://%s/%s (%v)", u.bucketName, name, err)
 	}
 	return writer.Close()
 }
