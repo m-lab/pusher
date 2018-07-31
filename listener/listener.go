@@ -37,14 +37,17 @@ func init() {
 	prometheus.MustRegister(pusherFileEventErrorCount)
 }
 
-// Listener provides a FileChannel on which to listen for new files and
+// Listener contains all member variables required for the state of a running
+// file listener.
 type Listener struct {
 	events      chan notify.EventInfo
 	stopper     chan int
 	fileChannel chan<- *tarcache.LocalDataFile
 }
 
-// Create and set up an inotify watcher on the directory and its subdirectories.
+// Create and set up an inotify watcher on the directory and its
+// subdirectories.  File events will be converted into `tarcache.LocalDataFile`
+// structs and pointers to those structs will sent to the passed-in channel.
 func Create(directory string, fileChannel chan<- *tarcache.LocalDataFile) (*Listener, error) {
 	listener := &Listener{
 		events:      make(chan notify.EventInfo, 1000000),

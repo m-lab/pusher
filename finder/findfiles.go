@@ -3,14 +3,14 @@
 // Even with inotify, we need a find-based cleanup for two reasons:
 //
 // 1. If closed files exist in the directory when the program starts, there is
-//    no way to know whether they are open or not. So, if they are older than the
-//    max_file_age, we will assume that the files are closed and upload them.
+// no way to know whether they are open or not. So, if they are older than the
+// max_file_age, we will assume that the files are closed and upload them.
 //
 // 2. There is a race condition in the notify library where it is possible to
-//    create a directory and then create a file in the directory before the
-//    recursive listener has been established. We work around this bug (and any
-//    other bugs) by having a "cleanup" job that unconditionally adds any files
-//    older than the max_file_age.
+// create a directory and then create a file in the directory before the
+// recursive listener has been established. We work around this bug (and any
+// other bugs) by having a "cleanup" job that unconditionally adds any files
+// older than the max_file_age.
 package finder
 
 import (
@@ -93,14 +93,16 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 }
 
 // FindForever repeatedly runs FindFiles.
+//
+// It randomizes the inter-`find` sleep time in an effort to avoid thundering
+// herd problems after container restarts. We're not worried about overloading
+// GCS, but without this we might end up running `find` for every experiment
+// simultaneously forever, and this could periodically run the disk out of
+// IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
+// exponential distribution and that the time-distribution of `find` operations
+// is therefore memoryless.
 func FindForever(directory string, maxFileAge time.Duration, notificationChannel chan<- *tarcache.LocalDataFile, expectedSleepTime time.Duration) {
 	for {
-		// Randomize the sleep time in an effort to avoid thundering herd problems
-		// after container restarts. We're not worried about overloading GCS, but
-		// without this we might end up running `find` for every experiment
-		// simultaneously forever, and periodically run the disk out of IOPs. Using
-		// ExpFloat64 in this way should ensure that the time between `find`
-		// operations is mostly memoryless.
 		time.Sleep(time.Duration(rand.ExpFloat64()*expectedSleepTime.Seconds()) * time.Second)
 
 		files, err := FindFiles(directory, maxFileAge)
