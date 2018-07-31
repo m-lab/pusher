@@ -28,5 +28,5 @@ func New(experiment string, node string, site string) Namer {
 // filename for an uploaded tarfile in a bucket.
 func (n namer) ObjectName(t time.Time) string {
 	timestring := t.Format("2006/01/02/20060102T150405.000Z")
-	return ("/" + n.experiment + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
+	return (n.experiment + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
 }

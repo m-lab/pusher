@@ -14,11 +14,11 @@ func TestFilenameGeneration(t *testing.T) {
 	}{
 		{
 			in:  time.Date(2018, 5, 6, 15, 1, 2, 44000000, time.UTC),
-			out: "/exp/2018/05/06/20180506T150102.044Z-mlab6-lga0t-exp.tgz",
+			out: "exp/2018/05/06/20180506T150102.044Z-mlab6-lga0t-exp.tgz",
 		},
 		{
 			in:  time.Date(2008, 1, 1, 0, 0, 0, 0, time.UTC),
-			out: "/exp/2008/01/01/20080101T000000.000Z-mlab6-lga0t-exp.tgz",
+			out: "exp/2008/01/01/20080101T000000.000Z-mlab6-lga0t-exp.tgz",
 		},
 	}
 	namer := namer.New("exp", "mlab6", "lga0t")
