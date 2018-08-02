@@ -2,10 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/m-lab/go/bytecount"
@@ -43,19 +41,9 @@ func main() {
 	flag.Parse()
 	flagx.ArgsFromEnv(flag.CommandLine)
 
-	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
-	fields := strings.SplitN(*nodeName, ".", 3)
-	if len(fields) < 2 {
-		log.Fatalf("Node name is missing machine and site fields: %s", *nodeName)
-	}
-	if len(fields[0]) != 5 || len(fields[1]) != 5 {
-		log.Fatalf("Machine and site names should have only five characters, e.g. mlab5.abc0t: %s.%s",
-			fields[0], fields[1])
-	}
-	fmt.Println(fields)
-
 	// Set up the upload system.
-	namer := namer.New(*experiment, fields[0], fields[1])
+	namer, err := namer.New(*experiment, *nodeName)
+	r.Must(err, "Could not create a new Namer")
 	uploader, err := uploader.Create(*project, *bucket, namer)
 	r.Must(err, "Could not create uploader")
 
