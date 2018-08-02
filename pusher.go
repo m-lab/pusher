@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/m-lab/go/bytecount"
@@ -25,8 +27,7 @@ var (
 	directory       = flag.String("directory", "/var/spool/test", "The directory to watch for files.")
 	bucket          = flag.String("bucket", "scraper-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
-	node            = flag.String("node", "mlab5", "The name of the node at the site")
-	site            = flag.String("site", "abc0t", "The name of the mlab site for the node")
+	nodeName        = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
@@ -42,8 +43,19 @@ func main() {
 	flag.Parse()
 	flagx.ArgsFromEnv(flag.CommandLine)
 
+	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
+	fields := strings.SplitN(*nodeName, ".", 3)
+	if len(fields) < 2 {
+		log.Fatalf("Node name is missing machine and site fields: %s", *nodeName)
+	}
+	if len(fields[0]) != 5 || len(fields[1]) != 5 {
+		log.Fatalf("Machine and site names should have only five characters, e.g. mlab5.abc0t: %s.%s",
+			fields[0], fields[1])
+	}
+	fmt.Println(fields)
+
 	// Set up the upload system.
-	namer := namer.New(*experiment, *node, *site)
+	namer := namer.New(*experiment, fields[0], fields[1])
 	uploader, err := uploader.Create(*project, *bucket, namer)
 	r.Must(err, "Could not create uploader")
 
