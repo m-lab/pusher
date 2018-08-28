@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	r "github.com/m-lab/go/runtimeext"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
 )
@@ -25,21 +26,20 @@ type uploader struct {
 	bucketName string
 }
 
-// Create and return a new object that implements Uploader.
-func Create(project string, bucket string, namer namer.Namer) (Uploader, error) {
+// MustCreate creates and return a new object that implements Uploader, or dies.
+func MustCreate(project string, bucket string, namer namer.Namer) Uploader {
 	// TODO: add timeouts and error handling to this.
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
+	r.Must(err, "Could not create cloud storage client")
 	bucketHandle := client.Bucket(bucket)
 	return &uploader{
 		context:    ctx,
 		namer:      namer,
+		client:     client,
 		bucket:     bucketHandle,
 		bucketName: bucket,
-	}, nil
+	}
 }
 
 // Upload the provided buffer to GCS.
