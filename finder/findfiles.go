@@ -14,6 +14,7 @@
 package finder
 
 import (
+	"context"
 	"log"
 	"math/rand"
 	"os"
@@ -48,9 +49,9 @@ func init() {
 	prometheus.MustRegister(pusherFinderBytes)
 }
 
-// FindFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
+// findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDataFile, error) {
+func findFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDataFile, error) {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
 	eligibleFiles := make([]*tarcache.LocalDataFile, 0, 1024)
@@ -92,7 +93,7 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 	return eligibleFiles, nil
 }
 
-// FindForever repeatedly runs FindFiles.
+// FindForever repeatedly runs FindFiles until its context is canceled.
 //
 // It randomizes the inter-`find` sleep time in an effort to avoid thundering
 // herd problems after container restarts. We're not worried about overloading
@@ -101,11 +102,16 @@ func FindFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 // IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
 // exponential distribution and that the time-distribution of `find` operations
 // is therefore memoryless.
-func FindForever(directory string, maxFileAge time.Duration, notificationChannel chan<- *tarcache.LocalDataFile, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- *tarcache.LocalDataFile, expectedSleepTime time.Duration) {
 	for {
-		time.Sleep(time.Duration(rand.ExpFloat64()*expectedSleepTime.Seconds()) * time.Second)
+		sleepTime := time.Duration(rand.ExpFloat64()*float64(expectedSleepTime.Nanoseconds())) * time.Nanosecond
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.NewTimer(sleepTime).C:
+		}
 
-		files, err := FindFiles(directory, maxFileAge)
+		files, err := findFiles(directory, maxFileAge)
 		if err != nil {
 			log.Printf("Could not FindFiles: %v", err)
 			continue

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -57,7 +58,9 @@ func main() {
 	go l.ListenForever()
 
 	// Send very old or missed files to the tarCache as a cleanup precaution.
-	go finder.FindForever(*directory, *maxFileAge, pusherChannel, *cleanupInterval)
+	finderContext, finderCancel := context.WithCancel(context.Background())
+	defer finderCancel()
+	go finder.FindForever(finderContext, *directory, *maxFileAge, pusherChannel, *cleanupInterval)
 
 	// Start up the monitoring service.
 	http.Handle("/metrics", promhttp.Handler())
