@@ -62,6 +62,10 @@ func TestBadEvent(t *testing.T) {
 	defer os.RemoveAll(dir)
 	ldfChan := make(chan *tarcache.LocalDataFile)
 	l, err := Create(dir, ldfChan)
+	if err != nil {
+		t.Errorf("%v", err)
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go l.ListenForever(ctx)
