@@ -49,7 +49,7 @@ func verifyTarfileContents(t *testing.T, tarfile string, contents []FileInTarfil
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		t.Errorf("tar command failed: %q", err)
+		t.Fatalf("tar command failed: %q", err)
 	}
 	// All files are unseen initially.
 	seenFile := make([]bool, len(contents))
