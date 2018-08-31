@@ -27,10 +27,7 @@ func TestUploading(t *testing.T) {
 	namer := &testNamer{
 		newName: fileName,
 	}
-	uploader, err := uploader.Create("mlab-testing", "archive-mlab-testing", namer)
-	if err != nil {
-		t.Fatal("Could not make uploader:", err)
-	}
+	uploader := uploader.MustCreate("mlab-testing", "archive-mlab-testing", namer)
 	buffer := new(bytes.Buffer)
 	contents := "contentofatarfile"
 	buffer.WriteString(contents)

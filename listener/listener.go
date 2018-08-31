@@ -30,6 +30,8 @@ var (
 		},
 		[]string{"type"},
 	)
+	// Allow mocking of os.Open to test error cases.
+	osOpen = os.Open
 )
 
 func init() {
@@ -83,7 +85,7 @@ func (l *Listener) ListenForever() {
 				source = "movedto"
 			}
 			pusherFileEventCount.WithLabelValues(source).Inc()
-			ldf, err := convertEventInfoToLocalDataFile(ei)
+			ldf, err := convertEventInfoToLocalDataFile(ei.Path())
 			if err != nil {
 				log.Printf("Could not create file for event: %v\n", ei)
 				continue
@@ -94,15 +96,16 @@ func (l *Listener) ListenForever() {
 
 }
 
-func convertEventInfoToLocalDataFile(ei notify.EventInfo) (*tarcache.LocalDataFile, error) {
-	path := ei.Path()
-	file, err := os.Open(path)
+func convertEventInfoToLocalDataFile(path string) (*tarcache.LocalDataFile, error) {
+	file, err := osOpen(path)
 	if err != nil {
 		pusherFileEventErrorCount.WithLabelValues("open").Inc()
 		return nil, err
 	}
 	info, err := file.Stat()
 	if err != nil {
+		// It is a rare file on a strange/broken filesystem that can be open()ed, but
+		// not fstat()ed.  This should hopefully never happen in practice.
 		pusherFileEventErrorCount.WithLabelValues("stat").Inc()
 		return nil, err
 	}

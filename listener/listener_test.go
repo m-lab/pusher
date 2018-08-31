@@ -87,3 +87,17 @@ func TestListenInSubdir(t *testing.T) {
 		t.Errorf("Bad filename: %q\n", ldf.AbsoluteFileName)
 	}
 }
+
+func TestCreateOnBadDir(t *testing.T) {
+	dir, err := ioutil.TempDir("/tmp", "TestCreateOnBadDir.")
+	if err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+	ldfChan := make(chan *tarcache.LocalDataFile)
+	l, err := listener.Create(dir+"/doesnotexist", ldfChan)
+	if l != nil || err == nil {
+		t.Error("Should have had an error")
+	}
+}

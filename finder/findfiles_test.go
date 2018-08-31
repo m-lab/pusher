@@ -1,28 +1,56 @@
-package finder
+package finder_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
+
+	r "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/pusher/finder"
+	"github.com/m-lab/pusher/tarcache"
 )
 
-func TestFindFiles(t *testing.T) {
-	tempdir, _ := ioutil.TempDir("/tmp", "find_file_test")
+func TestFindForever(t *testing.T) {
+	// Set up the files.
+	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
 	defer os.RemoveAll(tempdir)
-	file1, _ := os.Create(tempdir + "/next_oldest_file")
-	_, _ = file1.WriteString("data\n")
-	_ = file1.Close()
-	newtime := time.Now().Add(time.Duration(-12) * time.Hour)
-	_ = os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime)
-	localfiles, err := FindFiles(tempdir, time.Duration(6)*time.Hour)
-	if err != nil {
-		t.Error(err)
+	r.Must(err, "Could not set up temp dir")
+	// Set up the files
+	r.Must(ioutil.WriteFile(tempdir+"/oldest_file", []byte("data\n"), 0644), "WriteFile failed")
+	newtime := time.Now().Add(time.Duration(-13) * time.Hour)
+	r.Must(os.Chtimes(tempdir+"/oldest_file", newtime, newtime), "Chtimes failed")
+	r.Must(ioutil.WriteFile(tempdir+"/next_oldest_file", []byte("moredata\n"), 0644), "WriteFile failed")
+	newtime = time.Now().Add(time.Duration(-12) * time.Hour)
+	r.Must(os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime), "Chtimes failed")
+	// Set up the receiver channel.
+	foundFiles := make(chan *tarcache.LocalDataFile)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go finder.FindForever(ctx, tempdir, time.Duration(6)*time.Hour, foundFiles, 1*time.Microsecond)
+	localfiles := []*tarcache.LocalDataFile{
+		<-foundFiles,
+		<-foundFiles,
 	}
-	if len(localfiles) != 1 {
-		t.Errorf("len(localfiles) (%d) != 1", len(localfiles))
+	if len(localfiles) != 2 {
+		t.Errorf("len(localfiles) (%d) != 2", len(localfiles))
 	}
-	if localfiles[0].AbsoluteFileName != tempdir+"/next_oldest_file" {
-		t.Errorf("wrong name: %s", localfiles[0].AbsoluteFileName)
+	if localfiles[0].AbsoluteFileName != tempdir+"/oldest_file" {
+		t.Errorf("wrong name[0]: %s", localfiles[0].AbsoluteFileName)
 	}
+	if localfiles[1].AbsoluteFileName != tempdir+"/next_oldest_file" {
+		t.Errorf("wrong name[1]: %s", localfiles[1].AbsoluteFileName)
+	}
+}
+
+func TestFindForeverNoDirExists(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
+	defer os.RemoveAll(tempdir)
+	r.Must(err, "Could not set up temp dir")
+	go finder.FindForever(ctx, "/tmp/dne", time.Duration(time.Millisecond), nil, time.Duration(time.Millisecond))
+	time.Sleep(1 * time.Second)
+	// If the finder doesn't crash on a bad directory, then it's a success.
 }
