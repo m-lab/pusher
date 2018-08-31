@@ -185,20 +185,19 @@ func newTarfile() *tarfile {
 // no matter whether the processing is happening due to age thresholds or size
 // thresholds.
 func (t *TarCache) ListenForever(ctx context.Context) {
-	channelOpen := true
-	cancelled := false
-	for channelOpen && !cancelled {
-		var dataFile *LocalDataFile
+	for {
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
 			pusherTarfilesUploadCalls.WithLabelValues("age_threshold_met").Inc()
-		case dataFile, channelOpen = <-t.fileChannel:
+		case dataFile, channelOpen := <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
+			} else {
+				return
 			}
 		case <-ctx.Done():
-			cancelled = true
+			return
 		}
 	}
 }

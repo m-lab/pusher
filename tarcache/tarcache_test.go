@@ -216,6 +216,18 @@ func TestContextCancellation(t *testing.T) {
 	tarCache.ListenForever(ctx)
 }
 
+func TestChannelCloseCancellation(t *testing.T) {
+	uploader := fakeUploader{}
+	tarCache, inputChannel := New("/tmp", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	ctx := context.Background()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		close(inputChannel)
+	}()
+	// If this doesn't actually listen forever, then this test is a success.
+	tarCache.ListenForever(ctx)
+}
+
 func TestEmptyUpload(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestEmptyUpload")
 	defer os.RemoveAll(tempdir)
