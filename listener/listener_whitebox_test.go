@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -61,8 +62,9 @@ func TestBadEvent(t *testing.T) {
 	defer os.RemoveAll(dir)
 	ldfChan := make(chan *tarcache.LocalDataFile)
 	l, err := Create(dir, ldfChan)
-	defer l.Stop()
-	go l.ListenForever()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go l.ListenForever(ctx)
 	l.events <- &MockEventInfo{}
 	time.Sleep(250 * time.Millisecond)
 	// No crash == test success

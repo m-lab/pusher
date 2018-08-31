@@ -2,6 +2,7 @@ package tarcache
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"io/ioutil"
@@ -162,7 +163,8 @@ func TestTimer(t *testing.T) {
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
 	}
-	go tarCache.ListenForever()
+	ctx := context.Background()
+	go tarCache.ListenForever(ctx)
 	channel <- &tinyFile
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
@@ -200,6 +202,30 @@ func TestTimer(t *testing.T) {
 	if uploader.calls != 1 {
 		t.Error("uploader.calls should be one ", uploader.calls)
 	}
+}
+
+func TestContextCancellation(t *testing.T) {
+	uploader := fakeUploader{}
+	tarCache, _ := New("/tmp", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+	// If this doesn't actually listen forever, then this test is a success.
+	tarCache.ListenForever(ctx)
+}
+
+func TestChannelCloseCancellation(t *testing.T) {
+	uploader := fakeUploader{}
+	tarCache, inputChannel := New("/tmp", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	ctx := context.Background()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		close(inputChannel)
+	}()
+	// If this doesn't actually listen forever, then this test is a success.
+	tarCache.ListenForever(ctx)
 }
 
 func TestEmptyUpload(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io/ioutil"
 	"log"
 	"os"
@@ -183,20 +184,21 @@ func newTarfile() *tarfile {
 // allows us to ensure that all file processing happens in this single thread,
 // no matter whether the processing is happening due to age thresholds or size
 // thresholds.
-func (t *TarCache) ListenForever() {
-	channelOpen := true
-	for channelOpen {
-		var dataFile *LocalDataFile
+func (t *TarCache) ListenForever(ctx context.Context) {
+	for {
 		select {
 		case <-t.currentTarfile.timeout:
 			t.uploadAndDelete()
 			pusherTarfilesUploadCalls.WithLabelValues("age_threshold_met").Inc()
-		case dataFile, channelOpen = <-t.fileChannel:
+		case dataFile, channelOpen := <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
+			} else {
+				return
 			}
+		case <-ctx.Done():
+			return
 		}
-
 	}
 }
 

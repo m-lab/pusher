@@ -43,10 +43,6 @@ func main() {
 	flagx.ArgsFromEnv(flag.CommandLine)
 
 	// Create a context that will allow cancellation of all the component goroutines.
-	//
-	// TODO: convert all the module.DoForever() functions into
-	// module.DoForever(context) and eliminate each module's customized stop
-	// techniques in favor of the <-context.Done() idiom
 	context, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -55,14 +51,14 @@ func main() {
 	r.Must(err, "Could not create a new Namer")
 	uploader := uploader.MustCreate(*project, *bucket, namer)
 
+	// Set up the file-bundling tarcache system.
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
-	go tarCache.ListenForever()
+	go tarCache.ListenForever(context)
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
 	r.Must(err, "Could not create listener")
-	defer l.Stop()
-	go l.ListenForever()
+	go l.ListenForever(context)
 
 	// Send very old or missed files to the tarCache as a cleanup precaution.
 	go finder.FindForever(context, *directory, *maxFileAge, pusherChannel, *cleanupInterval)
