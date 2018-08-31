@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -31,6 +32,53 @@ func (f *fakeUploader) Upload(contents *bytes.Buffer) error {
 		return errors.New("A fake error to trigger retry logic")
 	}
 	return nil
+}
+
+type FileInTarfile struct {
+	name string
+	size int
+}
+
+// verifyTarfileContents checks that the referenced tarfile actually contains
+// each file in contents.  The filenames should not contain characters which
+// have a special meaning in a regular expression context.
+func verifyTarfileContents(t *testing.T, tarfile string, contents []FileInTarfile) {
+	// Get the table of files in the tarfile.
+	cmd := exec.Command("tar", "tvfz", tarfile)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("tar command failed: %q", err)
+	}
+	// All files are unseen initially.
+	seenFile := make([]bool, len(contents))
+	// For each line in the table of output, check it against each file.
+	for _, lineString := range strings.Split(string(out.Bytes()), "\n") {
+		if lineString == "" {
+			continue
+		}
+		line := []byte(lineString)
+		matched := false
+		for i, f := range contents {
+			re := fmt.Sprintf(" %d .* %s$", f.size, f.name)
+			if match, err := regexp.Match(re, line); match && err == nil {
+				matched = true
+				seenFile[i] = true
+			}
+		}
+		// Every line should match some file, or else there are random
+		// extra files present.
+		if !matched {
+			t.Errorf("Bad line: %q", line)
+		}
+	}
+	// If any file is unseen, report an error.
+	for i, seen := range seenFile {
+		if !seen {
+			t.Errorf("Did not find file %s in the output of tar", contents[i].name)
+		}
+	}
 }
 
 // A whitebox test that verifies that the cache contents are built up gradually.
@@ -96,28 +144,10 @@ func TestAdd(t *testing.T) {
 	}
 	// Ensure that the uploaded tarfile can be opened by tar and contains files of the correct size.
 	ioutil.WriteFile(tempdir+"/tarfile.tgz", uploader.contents, os.FileMode(0666))
-	cmd := exec.Command("tar", "tvfz", tempdir+"/tarfile.tgz")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err = cmd.Run()
-	if err != nil {
-		t.Errorf("tar command failed: %q", err)
-	}
-	hasTinyfile := false
-	hasBigfile := false
-	for _, lineString := range strings.Split(string(out.Bytes()), "\n") {
-		line := []byte(lineString)
-		if match, err := regexp.Match(` 8 .* tinyfile$`, line); match && err == nil {
-			hasTinyfile = true
-		} else if match, err := regexp.Match(` 2000 .* a/b/bigfile$`, line); match && err == nil {
-			hasBigfile = true
-		} else if lineString != "" {
-			t.Errorf("Bad line: %q", line)
-		}
-	}
-	if !hasBigfile || !hasTinyfile {
-		t.Errorf("Both should be true, but hasBigfile = %t and hasTinyfile = %t", hasBigfile, hasTinyfile)
-	}
+	verifyTarfileContents(t, tempdir+"/tarfile.tgz",
+		[]FileInTarfile{
+			{name: "tinyfile", size: 8},
+			{name: "a/b/bigfile", size: 2000}})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	fileObject, err = os.Open(tempdir + "/tiny2")
