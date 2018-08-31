@@ -4,6 +4,7 @@
 package listener
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -43,7 +44,6 @@ func init() {
 // file listener.
 type Listener struct {
 	events      chan notify.EventInfo
-	stopper     chan int
 	fileChannel chan<- *tarcache.LocalDataFile
 }
 
@@ -53,26 +53,20 @@ type Listener struct {
 func Create(directory string, fileChannel chan<- *tarcache.LocalDataFile) (*Listener, error) {
 	listener := &Listener{
 		events:      make(chan notify.EventInfo, 1000000),
-		stopper:     make(chan int),
 		fileChannel: fileChannel,
 	}
-	// "..."" is the special syntax that means "also watch all subdirectories".
+	// "..." is the special syntax that means "also watch all subdirectories".
 	if err := notify.Watch(directory+"/...", listener.events, notify.InCloseWrite|notify.InMovedTo); err != nil {
 		return nil, err
 	}
 	return listener, nil
 }
 
-// Stop listening to filesystem events
-func (l *Listener) Stop() {
-	close(l.stopper)
-}
-
 // ListenForever listens for listen for FS events and sends them along the fileChannel until Stop is called.
-func (l *Listener) ListenForever() {
+func (l *Listener) ListenForever(ctx context.Context) {
 	for {
 		select {
-		case <-l.stopper:
+		case <-ctx.Done():
 			notify.Stop(l.events)
 			return
 		case ei := <-l.events:

@@ -1,6 +1,7 @@
 package listener_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -25,8 +26,9 @@ func TestListenForClose(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	defer l.Stop()
-	go l.ListenForever()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go l.ListenForever(ctx)
 	ioutil.WriteFile(dir+"/testfile", []byte("test"), 0777)
 	ldf := <-ldfChan
 	if !strings.HasSuffix(ldf.AbsoluteFileName, "/testfile") || !strings.HasPrefix(ldf.AbsoluteFileName, "/tmp/TestListenForClose.") {
@@ -49,8 +51,9 @@ func TestListenForMove(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	defer l.Stop()
-	go l.ListenForever()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go l.ListenForever(ctx)
 	err = os.Rename(dir+"/testfile", dir+"/subdir/testfile")
 	if err != nil {
 		t.Errorf("%v", err)
@@ -76,8 +79,9 @@ func TestListenInSubdir(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	defer l.Stop()
-	go l.ListenForever()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go l.ListenForever(ctx)
 	os.MkdirAll(dir+"/subdir/sub1/sub2", 0777)
 	// Sleep to allow the subdirectory listener to be established.
 	time.Sleep(100 * time.Millisecond)

@@ -7,6 +7,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io/ioutil"
 	"log"
 	"os"
@@ -183,9 +184,10 @@ func newTarfile() *tarfile {
 // allows us to ensure that all file processing happens in this single thread,
 // no matter whether the processing is happening due to age thresholds or size
 // thresholds.
-func (t *TarCache) ListenForever() {
+func (t *TarCache) ListenForever(ctx context.Context) {
 	channelOpen := true
-	for channelOpen {
+	cancelled := false
+	for channelOpen && !cancelled {
 		var dataFile *LocalDataFile
 		select {
 		case <-t.currentTarfile.timeout:
@@ -195,8 +197,9 @@ func (t *TarCache) ListenForever() {
 			if channelOpen {
 				t.add(dataFile)
 			}
+		case <-ctx.Done():
+			cancelled = true
 		}
-
 	}
 }
 
