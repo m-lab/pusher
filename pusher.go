@@ -11,7 +11,7 @@ import (
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/go/bytecount"
 	flagx "github.com/m-lab/go/flagext"
-	r "github.com/m-lab/go/runtimeext"
+	rtx "github.com/m-lab/go/runtimeext"
 
 	"github.com/m-lab/pusher/finder"
 	"github.com/m-lab/pusher/listener"
@@ -50,9 +50,9 @@ func main() {
 
 	// Set up the upload system.
 	namer, err := namer.New(*experiment, *nodeName)
-	r.Must(err, "Could not create a new Namer")
+	rtx.Must(err, "Could not create a new Namer")
 	client, err := storage.NewClient(ctx)
-	r.Must(err, "Could not create cloud storage client")
+	rtx.Must(err, "Could not create cloud storage client")
 
 	uploader := uploader.Create(ctx, stiface.AdaptClient(client), *bucket, namer)
 
@@ -62,7 +62,7 @@ func main() {
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
-	r.Must(err, "Could not create listener")
+	rtx.Must(err, "Could not create listener")
 	go l.ListenForever(ctx)
 
 	// Send very old or missed files to the tarCache as a cleanup precaution.
