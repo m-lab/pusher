@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"cloud.google.com/go/storage"
-	r "github.com/m-lab/go/runtimeext"
+	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
 )
@@ -17,28 +16,30 @@ type Uploader interface {
 	Upload(*bytes.Buffer) error
 }
 
-// We split the Uploader into a struct and Interface to allow for mocking.
+// We split the Uploader into a struct and Interface to allow for mocking of the
+// returned Uploader.
+//
+// Similarly, we use the stiface interface versions of Client and BucketHandle
+// instead of raw pointers to allow for mocking of the Google Cloud Storage
+// interface to aid in whitebox testing.
 type uploader struct {
 	context    context.Context
 	namer      namer.Namer
-	client     *storage.Client
-	bucket     *storage.BucketHandle
+	client     stiface.Client
+	bucket     stiface.BucketHandle
 	bucketName string
 }
 
-// MustCreate creates and return a new object that implements Uploader, or dies.
-func MustCreate(project string, bucket string, namer namer.Namer) Uploader {
+// Create and return a new object that implements Uploader.
+func Create(ctx context.Context, client stiface.Client, bucketName string, namer namer.Namer) Uploader {
 	// TODO: add timeouts and error handling to this.
-	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
-	r.Must(err, "Could not create cloud storage client")
-	bucketHandle := client.Bucket(bucket)
+	bucketHandle := client.Bucket(bucketName)
 	return &uploader{
 		context:    ctx,
 		namer:      namer,
 		client:     client,
 		bucket:     bucketHandle,
-		bucketName: bucket,
+		bucketName: bucketName,
 	}
 }
 

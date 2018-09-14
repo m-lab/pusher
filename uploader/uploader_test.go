@@ -3,12 +3,16 @@ package uploader_test
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"math/rand"
 	"os/exec"
 	"testing"
 	"time"
 
+	"cloud.google.com/go/storage"
+	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/pusher/uploader"
+	"golang.org/x/net/context"
 )
 
 type testNamer struct {
@@ -27,11 +31,16 @@ func TestUploading(t *testing.T) {
 	namer := &testNamer{
 		newName: fileName,
 	}
-	uploader := uploader.MustCreate("mlab-testing", "archive-mlab-testing", namer)
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		t.Error("Could not create storage client:", err)
+	}
+	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
 	buffer := new(bytes.Buffer)
 	contents := "contentofatarfile"
 	buffer.WriteString(contents)
-	if err := uploader.Upload(buffer); err != nil {
+	if err := up.Upload(buffer); err != nil {
 		t.Error("Could not Upload():", err)
 	}
 	url := "https://storage.googleapis.com/archive-mlab-testing/" + fileName
@@ -48,5 +57,73 @@ func TestUploading(t *testing.T) {
 	}
 	if s := string(out.Bytes()); s != contents {
 		t.Errorf("File contents %q != %q (url: %q)", s, contents, url)
+	}
+}
+
+func TestUploadBadFilename(t *testing.T) {
+	namer := &testNamer{"Bad\nFilename"}
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		t.Error("Could not create storage client:", err)
+	}
+	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
+	buffer := new(bytes.Buffer)
+	contents := "contents"
+	buffer.WriteString(contents)
+	err = up.Upload(buffer)
+	if err == nil {
+		t.Error("Should not have been able to Upload() badfilename")
+	}
+}
+
+// Adapted from google-cloud-go-testing/storage/stiface/stiface_test.go
+//
+// By using the "interface" version of the client, we make it possible to sub in
+// our own fakes at any level. Here we sub in a fake Client which returns a fake
+// BucketHandle that returns a fake Object, that returns a Writer in which all
+// writes will fail. This is only a "blackbox" test in the most technical of
+// senses, but it allows us to exercise error paths.
+type fakeClient struct {
+	stiface.Client
+}
+
+func (f fakeClient) Bucket(name string) stiface.BucketHandle {
+	return &fakeBucketHandle{}
+}
+
+type fakeBucketHandle struct {
+	stiface.BucketHandle
+}
+
+type fakeErroringObjectHandle struct {
+	stiface.ObjectHandle
+}
+
+func (f fakeBucketHandle) Object(name string) stiface.ObjectHandle {
+	return fakeErroringObjectHandle{}
+}
+
+type failingWriter struct {
+	stiface.Writer
+}
+
+func (f failingWriter) Write(p []byte) (n int, err error) {
+	return 0, errors.New("This should fail immediately")
+}
+
+func (f fakeErroringObjectHandle) NewWriter(ctx context.Context) stiface.Writer {
+	return &failingWriter{}
+}
+
+// A test to execute error paths.
+func TestUploadFailure(t *testing.T) {
+	up := uploader.Create(context.Background(), &fakeClient{}, "archive-mlab-testing", &testNamer{"OkayFilename"})
+	buffer := new(bytes.Buffer)
+	contents := "contents"
+	buffer.WriteString(contents)
+	err := up.Upload(buffer)
+	if err == nil {
+		t.Error("Should not have been able to Upload() the writer that fails.")
 	}
 }
