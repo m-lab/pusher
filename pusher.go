@@ -45,28 +45,28 @@ func main() {
 	flagx.ArgsFromEnv(flag.CommandLine)
 
 	// Create a context that will allow cancellation of all the component goroutines.
-	context, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Set up the upload system.
 	namer, err := namer.New(*experiment, *nodeName)
 	r.Must(err, "Could not create a new Namer")
-	client, err := storage.NewClient(context)
+	client, err := storage.NewClient(ctx)
 	r.Must(err, "Could not create cloud storage client")
 
-	uploader := uploader.Create(context, stiface.AdaptClient(client), *bucket, namer)
+	uploader := uploader.Create(ctx, stiface.AdaptClient(client), *bucket, namer)
 
 	// Set up the file-bundling tarcache system.
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
-	go tarCache.ListenForever(context)
+	go tarCache.ListenForever(ctx)
 
 	// Send all file close and file move events to the tarCache.
 	l, err := listener.Create(*directory, pusherChannel)
 	r.Must(err, "Could not create listener")
-	go l.ListenForever(context)
+	go l.ListenForever(ctx)
 
 	// Send very old or missed files to the tarCache as a cleanup precaution.
-	go finder.FindForever(context, *directory, *maxFileAge, pusherChannel, *cleanupInterval)
+	go finder.FindForever(ctx, *directory, *maxFileAge, pusherChannel, *cleanupInterval)
 
 	// Start up the monitoring service.
 	http.Handle("/metrics", promhttp.Handler())
