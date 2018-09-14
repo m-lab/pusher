@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"cloud.google.com/go/storage"
+	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/go/bytecount"
 	flagx "github.com/m-lab/go/flagext"
 	r "github.com/m-lab/go/runtimeext"
@@ -49,7 +51,10 @@ func main() {
 	// Set up the upload system.
 	namer, err := namer.New(*experiment, *nodeName)
 	r.Must(err, "Could not create a new Namer")
-	uploader := uploader.MustCreate(*project, *bucket, namer)
+	client, err := storage.NewClient(context)
+	r.Must(err, "Could not create cloud storage client")
+
+	uploader := uploader.Create(context, stiface.AdaptClient(client), *bucket, namer)
 
 	// Set up the file-bundling tarcache system.
 	tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)

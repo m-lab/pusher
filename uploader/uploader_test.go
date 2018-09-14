@@ -1,4 +1,4 @@
-package uploader
+package uploader_test
 
 import (
 	"bytes"
@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/m-lab/pusher/uploader"
 	"golang.org/x/net/context"
 )
 
@@ -29,7 +31,12 @@ func TestUploading(t *testing.T) {
 	namer := &testNamer{
 		newName: fileName,
 	}
-	up := MustCreate("mlab-testing", "archive-mlab-testing", namer)
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		t.Error("Could not create storage client:", err)
+	}
+	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
 	buffer := new(bytes.Buffer)
 	contents := "contentofatarfile"
 	buffer.WriteString(contents)
@@ -55,11 +62,16 @@ func TestUploading(t *testing.T) {
 
 func TestUploadBadFilename(t *testing.T) {
 	namer := &testNamer{"Bad\nFilename"}
-	up := MustCreate("mlab-testing", "archive-mlab-testing", namer)
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		t.Error("Could not create storage client:", err)
+	}
+	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
 	buffer := new(bytes.Buffer)
 	contents := "contents"
 	buffer.WriteString(contents)
-	err := up.Upload(buffer)
+	err = up.Upload(buffer)
 	if err == nil {
 		t.Error("Should not have been able to Upload() badfilename")
 	}
@@ -68,8 +80,18 @@ func TestUploadBadFilename(t *testing.T) {
 // Adapted from google-cloud-go-testing/storage/stiface/stiface_test.go
 //
 // By using the "interface" version of the client, we make it possible to sub in
-// our own fakes at any level. Here we sub in a fake BucketHandle that returns a
-// fake Object, that returns a Writer in which all writes will fail.
+// our own fakes at any level. Here we sub in a fake Client which returns a fake
+// BucketHandle that returns a fake Object, that returns a Writer in which all
+// writes will fail. This is only a "blackbox" test in the most technical of
+// senses, but it allows us to exercise error paths.
+type fakeClient struct {
+	stiface.Client
+}
+
+func (f fakeClient) Bucket(name string) stiface.BucketHandle {
+	return &fakeBucketHandle{}
+}
+
 type fakeBucketHandle struct {
 	stiface.BucketHandle
 }
@@ -94,18 +116,14 @@ func (f fakeErroringObjectHandle) NewWriter(ctx context.Context) stiface.Writer 
 	return &failingWriter{}
 }
 
-// A whitebox test to execute error paths.
+// A test to execute error paths.
 func TestUploadFailure(t *testing.T) {
-	up := &uploader{
-		context: context.Background(),
-		namer:   &testNamer{"OkayFilename"},
-		bucket:  &fakeBucketHandle{},
-	}
+	up := uploader.Create(context.Background(), &fakeClient{}, "archive-mlab-testing", &testNamer{"OkayFilename"})
 	buffer := new(bytes.Buffer)
 	contents := "contents"
 	buffer.WriteString(contents)
 	err := up.Upload(buffer)
 	if err == nil {
-		t.Error("Should not have been able to Upload() badfilename")
+		t.Error("Should not have been able to Upload() the writer that fails.")
 	}
 }

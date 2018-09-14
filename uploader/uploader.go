@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
-	r "github.com/m-lab/go/runtimeext"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
 )
@@ -32,20 +30,16 @@ type uploader struct {
 	bucketName string
 }
 
-// MustCreate creates and return a new object that implements Uploader, or dies.
-func MustCreate(project string, bucket string, namer namer.Namer) Uploader {
+// Create and return a new object that implements Uploader.
+func Create(ctx context.Context, client stiface.Client, bucketName string, namer namer.Namer) Uploader {
 	// TODO: add timeouts and error handling to this.
-	ctx := context.Background()
-	c, err := storage.NewClient(ctx)
-	r.Must(err, "Could not create cloud storage client")
-	client := stiface.AdaptClient(c)
-	bucketHandle := client.Bucket(bucket)
+	bucketHandle := client.Bucket(bucketName)
 	return &uploader{
 		context:    ctx,
 		namer:      namer,
 		client:     client,
 		bucket:     bucketHandle,
-		bucketName: bucket,
+		bucketName: bucketName,
 	}
 }
 
