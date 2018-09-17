@@ -101,10 +101,10 @@ func (f fakeBucketHandle) Object(name string) stiface.ObjectHandle {
 
 type failingWriter struct {
 	stiface.Writer
-	calls           int
-	firstThreeBytes []byte
+	calls int
 }
 
+// The first three writes succeed and each writes one byte to this slice.
 var firstThreeBytes = make([]byte, 3)
 
 // The first three calls succeed and write a single byte, and then it fails forever.
