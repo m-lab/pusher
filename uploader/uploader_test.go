@@ -37,10 +37,8 @@ func TestUploading(t *testing.T) {
 		t.Error("Could not create storage client:", err)
 	}
 	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
-	buffer := new(bytes.Buffer)
 	contents := "contentofatarfile"
-	buffer.WriteString(contents)
-	if err := up.Upload(buffer); err != nil {
+	if err := up.Upload([]byte(contents)); err != nil {
 		t.Error("Could not Upload():", err)
 	}
 	url := "https://storage.googleapis.com/archive-mlab-testing/" + fileName
@@ -68,10 +66,7 @@ func TestUploadBadFilename(t *testing.T) {
 		t.Error("Could not create storage client:", err)
 	}
 	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
-	buffer := new(bytes.Buffer)
-	contents := "contents"
-	buffer.WriteString(contents)
-	err = up.Upload(buffer)
+	err = up.Upload([]byte("contents"))
 	if err == nil {
 		t.Error("Should not have been able to Upload() badfilename")
 	}
@@ -119,10 +114,7 @@ func (f fakeErroringObjectHandle) NewWriter(ctx context.Context) stiface.Writer 
 // A test to execute error paths.
 func TestUploadFailure(t *testing.T) {
 	up := uploader.Create(context.Background(), &fakeClient{}, "archive-mlab-testing", &testNamer{"OkayFilename"})
-	buffer := new(bytes.Buffer)
-	contents := "contents"
-	buffer.WriteString(contents)
-	err := up.Upload(buffer)
+	err := up.Upload([]byte("contents"))
 	if err == nil {
 		t.Error("Should not have been able to Upload() the writer that fails.")
 	}

@@ -267,9 +267,10 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 	t.gzipWriter.Close()
 	pusherFilesPerTarfile.Observe(float64(len(t.members)))
 	pusherBytesPerTarfile.Observe(float64(t.contents.Len()))
+	bytes := t.contents.Bytes()
 	// Try to upload until the upload succeeds.
 	backoff.Retry(
-		func() error { return uploader.Upload(t.contents) },
+		func() error { return uploader.Upload(bytes) },
 		time.Duration(100)*time.Millisecond,
 		time.Duration(5)*time.Minute,
 		"upload",

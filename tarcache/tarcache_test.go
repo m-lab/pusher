@@ -24,8 +24,8 @@ type fakeUploader struct {
 	requestedRetries int
 }
 
-func (f *fakeUploader) Upload(contents *bytes.Buffer) error {
-	f.contents = contents.Bytes()
+func (f *fakeUploader) Upload(contents []byte) error {
+	f.contents = contents
 	f.calls++
 	if f.requestedRetries > 0 {
 		f.requestedRetries--

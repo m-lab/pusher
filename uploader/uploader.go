@@ -2,7 +2,6 @@
 package uploader
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 
 // Uploader is an interface for uploading data.
 type Uploader interface {
-	Upload(*bytes.Buffer) error
+	Upload([]byte) error
 }
 
 // We split the Uploader into a struct and Interface to allow for mocking of the
@@ -44,13 +43,18 @@ func Create(ctx context.Context, client stiface.Client, bucketName string, namer
 }
 
 // Upload the provided buffer to GCS.
-func (u *uploader) Upload(tarBuffer *bytes.Buffer) error {
+func (u *uploader) Upload(contents []byte) error {
 	name := u.namer.ObjectName(time.Now().UTC())
 	object := u.bucket.Object(name)
 	writer := object.NewWriter(u.context)
-	_, err := tarBuffer.WriteTo(writer)
-	if err != nil {
-		return fmt.Errorf("Could not write to gs://%s/%s (%v)", u.bucketName, name, err)
+	n, err := writer.Write(contents)
+	for n != len(contents) || err != nil {
+		if err != nil {
+			return fmt.Errorf("Could not write to gs://%s/%s (%v)", u.bucketName, name, err)
+		}
+		var newWrite int
+		newWrite, err = writer.Write(contents[n:])
+		n += newWrite
 	}
 	return writer.Close()
 }
