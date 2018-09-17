@@ -11,6 +11,7 @@ import (
 	"github.com/m-lab/go/bytecount"
 	flagx "github.com/m-lab/go/flagext"
 	rtx "github.com/m-lab/go/runtimeext"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/m-lab/pusher/finder"
 	"github.com/m-lab/pusher/listener"
@@ -68,6 +69,7 @@ func main() {
 	go finder.FindForever(ctx, *directory, *maxFileAge, pusherChannel, *cleanupInterval)
 
 	// Start up the monitoring service.
+	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		rtx.Must(http.ListenAndServe(*monitorAddr, nil), "Server died with an error")
 	}()

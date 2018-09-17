@@ -50,12 +50,9 @@ func TestMain(t *testing.T) {
 		}
 	}()
 	go func() {
+		// Only let main run for 5 seconds.
 		time.Sleep(5 * time.Second)
-		log.Println("about to cancel")
 		cancelCtx()
-		log.Println("Called cancel")
-		<-ctx.Done()
-		log.Println("DONE")
 	}()
 	main()
 }
