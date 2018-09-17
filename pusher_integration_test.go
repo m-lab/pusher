@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"context"
@@ -19,6 +19,46 @@ import (
 
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 )
+
+func TestMain(t *testing.T) {
+	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestMain")
+	defer os.RemoveAll(tempdir)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Set up the environment variables.
+	type TempEnvVar struct {
+		name, value, oldValue string
+	}
+	newVars := []TempEnvVar{
+		{"PROJECT", "mlab-testing", ""},
+		{"DIRECTORY", tempdir, ""},
+		{"BUCKET", "archive-mlab-testing", ""},
+		{"EXPERIMENT", "exp", ""},
+		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org", ""},
+	}
+	for i := range newVars {
+		newVars[i].oldValue = os.Getenv(newVars[i].name)
+		rtx.Must(os.Setenv(newVars[i].name, newVars[i].value), "Could not set env var")
+	}
+	defer func() {
+		for _, v := range newVars {
+			if v.oldValue != "" {
+				rtx.Must(os.Setenv(v.name, v.oldValue), "Could not reset env var")
+			}
+		}
+	}()
+	go func() {
+		time.Sleep(5 * time.Second)
+		log.Println("about to cancel")
+		cancelCtx()
+		log.Println("Called cancel")
+		<-ctx.Done()
+		log.Println("DONE")
+	}()
+	main()
+}
 
 type fakeNamer struct {
 	name string
@@ -91,12 +131,12 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 	}
 
 	// Verify that the contents of "tinyfile" from the tarfile match what we wrote the FS in the first place.
-	cloud_contents, err := ioutil.ReadFile(tardir + "/tinyfile")
+	cloudContents, err := ioutil.ReadFile(tardir + "/tinyfile")
 	if err != nil {
 		t.Errorf("Could not read %s (%v)", tardir+"/tinyfile", err)
 	}
-	if string(cloud_contents) != contents {
-		t.Errorf("File contents %q != %q (url: %q)", string(cloud_contents), contents, url)
+	if string(cloudContents) != contents {
+		t.Errorf("File contents %q != %q (url: %q)", string(cloudContents), contents, url)
 	}
 }
 
@@ -122,11 +162,10 @@ type singleErrorBucketHandle struct {
 func (s *singleErrorBucketHandle) Object(name string) stiface.ObjectHandle {
 	if s.objectcount > 0 {
 		return s.realBucketHandle.Object(name)
-	} else {
-		log.Println("Creating a new error object")
-		s.objectcount++
-		return fakeErroringObjectHandle{}
 	}
+	log.Println("Creating a new error object")
+	s.objectcount++
+	return fakeErroringObjectHandle{}
 }
 
 type fakeErroringObjectHandle struct {
@@ -206,11 +245,11 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 	}
 
 	// Verify that the contents of "tinyfile" from the tarfile match what we wrote the FS in the first place.
-	cloud_contents, err := ioutil.ReadFile(tardir + "/tinyfile")
+	cloudContents, err := ioutil.ReadFile(tardir + "/tinyfile")
 	if err != nil {
 		t.Errorf("Could not read %s (%v)", tardir+"/tinyfile", err)
 	}
-	if string(cloud_contents) != contents {
-		t.Errorf("File contents %q != %q (url: %q)", string(cloud_contents), contents, url)
+	if string(cloudContents) != contents {
+		t.Errorf("File contents %q != %q (url: %q)", string(cloudContents), contents, url)
 	}
 }
