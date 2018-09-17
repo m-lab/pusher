@@ -105,9 +105,12 @@ type failingWriter struct {
 	firstThreeBytes []byte
 }
 
+var firstThreeBytes = make([]byte, 3)
+
 // The first three calls succeed and write a single byte, and then it fails forever.
 func (f *failingWriter) Write(p []byte) (n int, err error) {
 	if f.calls < 3 {
+		firstThreeBytes[f.calls] = p[0]
 		f.calls++
 		return 1, nil
 	} else {
@@ -125,5 +128,8 @@ func TestUploadFailure(t *testing.T) {
 	err := up.Upload([]byte("contents"))
 	if err == nil {
 		t.Error("Should not have been able to Upload() the writer that fails.")
+	}
+	if string(firstThreeBytes) != "con" {
+		t.Error("The contents of the string were not partially written correctly")
 	}
 }
