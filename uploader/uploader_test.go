@@ -101,10 +101,18 @@ func (f fakeBucketHandle) Object(name string) stiface.ObjectHandle {
 
 type failingWriter struct {
 	stiface.Writer
+	calls           int
+	firstThreeBytes []byte
 }
 
-func (f failingWriter) Write(p []byte) (n int, err error) {
-	return 0, errors.New("This should fail immediately")
+// The first three calls succeed and write a single byte, and then it fails forever.
+func (f *failingWriter) Write(p []byte) (n int, err error) {
+	if f.calls < 3 {
+		f.calls++
+		return 1, nil
+	} else {
+		return 0, errors.New("This will fail forever now")
+	}
 }
 
 func (f fakeErroringObjectHandle) NewWriter(ctx context.Context) stiface.Writer {
