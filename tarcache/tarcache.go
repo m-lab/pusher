@@ -101,13 +101,10 @@ var (
 		Name: "pusher_strange_filenames_total",
 		Help: "The number of files we have seen with names that looked surprising in some way",
 	})
-	pusherSuccesses = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pusher_successes_total",
-			Help: "The number of times we have either successfully uploaded data or successfully had no data to upload.",
-		},
-		[]string{"reason"},
-	)
+	pusherSuccessTimestamp = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "pusher_success_timestamp",
+		Help: "The unix timestamp of the most recent pusher success",
+	})
 )
 
 func init() {
@@ -126,9 +123,7 @@ func init() {
 	prometheus.MustRegister(pusherCurrentTarfileFileCount)
 	prometheus.MustRegister(pusherCurrentTarfileSize)
 	prometheus.MustRegister(pusherStrangeFilenames)
-	prometheus.MustRegister(pusherSuccesses)
-	pusherSuccesses.WithLabelValues("empty_upload")
-	pusherSuccesses.WithLabelValues("tarfile_uploaded")
+	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
 // A LocalDataFile holds all the information we require about a file.
@@ -275,6 +270,7 @@ func (t *TarCache) add(file *LocalDataFile) {
 // Upload the buffer, delete the component files, start a new buffer.
 func (t *TarCache) uploadAndDelete() {
 	t.currentTarfile.uploadAndDelete(t.uploader)
+	pusherSuccessTimestamp.SetToCurrentTime()
 	t.currentTarfile = newTarfile()
 }
 
@@ -282,7 +278,6 @@ func (t *TarCache) uploadAndDelete() {
 func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 	if len(t.members) == 0 {
 		pusherEmptyUploads.Inc()
-		pusherSuccesses.WithLabelValues("empty_upload").Inc()
 		log.Println("uploadAndDelete called on an empty tarfile.")
 		return
 	}
@@ -299,7 +294,6 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 		"upload",
 	)
 	pusherTarfilesUploaded.Inc()
-	pusherSuccesses.WithLabelValues("tarfile_uploaded").Inc()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the

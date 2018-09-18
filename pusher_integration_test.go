@@ -63,6 +63,7 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 		if err != nil {
 			t.Errorf("Could not read metrics: %v", err)
 		}
+		log.Println(string(metricBytes))
 		metricsLinter := promlint.New(bytes.NewBuffer(metricBytes))
 		problems, err := metricsLinter.Lint()
 		if err != nil {
