@@ -322,3 +322,25 @@ func TestUnreadableFile(t *testing.T) {
 		t.Error("We added a nonexistent file to the tarCache.")
 	}
 }
+
+func TestLintFilename(t *testing.T) {
+	for _, badString := range []string{
+		"/gfdgf/../fsdfds/data.txt",
+		"file.txt; rm -Rf *",
+		"dir/.gz",
+		"dir/.../file.gz",
+		"dir/only_a_dir/",
+	} {
+		if lintFilename(badString) == nil {
+			t.Errorf("Should have had a lint error on %q", badString)
+		}
+	}
+	for _, goodString := range []string{
+		"ndt/2009/03/13/file.gz",
+		"experiment_2/2013/01/01/subdirectory/file.tgz",
+	} {
+		if warning := lintFilename(goodString); warning != nil {
+			t.Errorf("Linter gave warning %v on %q", warning, goodString)
+		}
+	}
+}
