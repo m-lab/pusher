@@ -101,6 +101,10 @@ var (
 		Name: "pusher_strange_filenames_total",
 		Help: "The number of files we have seen with names that looked surprising in some way",
 	})
+	pusherSuccessTimestamp = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "pusher_success_timestamp",
+		Help: "The unix timestamp of the most recent pusher success",
+	})
 )
 
 func init() {
@@ -119,6 +123,7 @@ func init() {
 	prometheus.MustRegister(pusherCurrentTarfileFileCount)
 	prometheus.MustRegister(pusherCurrentTarfileSize)
 	prometheus.MustRegister(pusherStrangeFilenames)
+	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
 // A LocalDataFile holds all the information we require about a file.
@@ -268,10 +273,13 @@ func (t *TarCache) uploadAndDelete() {
 	t.currentTarfile = newTarfile()
 }
 
-// Upload the contents of the tarfile and then delete the component files.
+// Upload the contents of the tarfile and then delete the component files. This
+// function will never return unsuccessfully. If there are files to upload, this
+// method will keep trying until the upload succeeds.
 func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 	if len(t.members) == 0 {
 		pusherEmptyUploads.Inc()
+		pusherSuccessTimestamp.SetToCurrentTime()
 		log.Println("uploadAndDelete called on an empty tarfile.")
 		return
 	}
@@ -288,6 +296,7 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 		"upload",
 	)
 	pusherTarfilesUploaded.Inc()
+	pusherSuccessTimestamp.SetToCurrentTime()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the

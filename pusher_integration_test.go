@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"testing"
@@ -16,11 +18,12 @@ import (
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
+	"github.com/prometheus/prometheus/util/promlint"
 
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 )
 
-func TestMain(t *testing.T) {
+func TestMainAndPrometheusMetrics(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestMain")
 	defer os.RemoveAll(tempdir)
 	if err != nil {
@@ -50,8 +53,24 @@ func TestMain(t *testing.T) {
 		}
 	}()
 	go func() {
-		// Only let main run for 5 seconds.
-		time.Sleep(5 * time.Second)
+		// Wait 2 seconds to lose all race conditions.
+		time.Sleep(2 * time.Second)
+		metricReader, err := http.Get("http://localhost:9000/metrics")
+		if err != nil || metricReader == nil {
+			t.Errorf("Could not GET metrics: %v", err)
+		}
+		metricBytes, err := ioutil.ReadAll(metricReader.Body)
+		if err != nil {
+			t.Errorf("Could not read metrics: %v", err)
+		}
+		metricsLinter := promlint.New(bytes.NewBuffer(metricBytes))
+		problems, err := metricsLinter.Lint()
+		if err != nil {
+			t.Errorf("Could not lint metrics: %v", err)
+		}
+		for _, p := range problems {
+			t.Errorf("Bad metric %v: %v", p.Metric, p.Text)
+		}
 		cancelCtx()
 	}()
 	main()
