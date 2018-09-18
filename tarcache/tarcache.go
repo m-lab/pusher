@@ -8,9 +8,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -94,6 +97,10 @@ var (
 		Name: "pusher_current_tarfile_size_bytes",
 		Help: "The number of bytes in the current tarfile",
 	})
+	pusherStrangeFilenames = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pusher_strange_filenames_total",
+		Help: "The number of files we have seen with names that looked surprising in some way",
+	})
 )
 
 func init() {
@@ -111,6 +118,7 @@ func init() {
 	prometheus.MustRegister(pusherEmptyUploads)
 	prometheus.MustRegister(pusherCurrentTarfileFileCount)
 	prometheus.MustRegister(pusherCurrentTarfileSize)
+	prometheus.MustRegister(pusherStrangeFilenames)
 }
 
 // A LocalDataFile holds all the information we require about a file.
@@ -205,6 +213,10 @@ func (t *TarCache) ListenForever(ctx context.Context) {
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
 func (t *TarCache) add(file *LocalDataFile) {
+	if warning := lintFilename(file.AbsoluteFileName); warning != nil {
+		log.Println("Strange filename encountered:", warning)
+		pusherStrangeFilenames.Inc()
+	}
 	tf := t.currentTarfile
 	if _, present := tf.memberSet[file.AbsoluteFileName]; present {
 		pusherTarfileDuplicateFiles.Inc()
@@ -288,4 +300,29 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 			log.Printf("Failed to remove %s (error: %q)\n", file.AbsoluteFileName, err)
 		}
 	}
+}
+
+// lintFilename returns nil if the file has a normal name, and an explanatory
+// error about why the name is strange otherwise.
+func lintFilename(name string) error {
+	cleaned := path.Clean(name)
+	if cleaned != name {
+		return fmt.Errorf("The cleaned up path %q did not match the name of the passed-in file %q", cleaned, name)
+	}
+	d, f := path.Split(name)
+	if strings.HasPrefix(f, ".") {
+		return fmt.Errorf("Hidden file detected: %q", name)
+	}
+	if strings.Contains(name, "...") {
+		return fmt.Errorf("Too many dots in %v", name)
+	}
+	invalidChars := regexp.MustCompile(`[^a-zA-Z0-9/:._-]`)
+	if invalidChars.MatchString(name) {
+		return fmt.Errorf("Strange characters detected in the filename %q", name)
+	}
+	recommendedFormat := regexp.MustCompile(`^[a-zA-Z0-9_-]+/20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
+	if !recommendedFormat.MatchString(d) {
+		return fmt.Errorf("Directory structure does not mirror our best practices for file %v", name)
+	}
+	return nil
 }
