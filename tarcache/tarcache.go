@@ -270,14 +270,16 @@ func (t *TarCache) add(file *LocalDataFile) {
 // Upload the buffer, delete the component files, start a new buffer.
 func (t *TarCache) uploadAndDelete() {
 	t.currentTarfile.uploadAndDelete(t.uploader)
-	pusherSuccessTimestamp.SetToCurrentTime()
 	t.currentTarfile = newTarfile()
 }
 
-// Upload the contents of the tarfile and then delete the component files.
+// Upload the contents of the tarfile and then delete the component files. This
+// function will never return unsuccessfully. If there are files to upload, this
+// method will keep trying until the upload succeeds.
 func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 	if len(t.members) == 0 {
 		pusherEmptyUploads.Inc()
+		pusherSuccessTimestamp.SetToCurrentTime()
 		log.Println("uploadAndDelete called on an empty tarfile.")
 		return
 	}
@@ -294,6 +296,7 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 		"upload",
 	)
 	pusherTarfilesUploaded.Inc()
+	pusherSuccessTimestamp.SetToCurrentTime()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the
