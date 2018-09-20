@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	r "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/finder"
 	"github.com/m-lab/pusher/tarcache"
 )
@@ -16,14 +16,14 @@ func TestFindForever(t *testing.T) {
 	// Set up the files.
 	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
 	defer os.RemoveAll(tempdir)
-	r.Must(err, "Could not set up temp dir")
+	rtx.Must(err, "Could not set up temp dir")
 	// Set up the files
-	r.Must(ioutil.WriteFile(tempdir+"/oldest_file", []byte("data\n"), 0644), "WriteFile failed")
+	rtx.Must(ioutil.WriteFile(tempdir+"/oldest_file", []byte("data\n"), 0644), "WriteFile failed")
 	newtime := time.Now().Add(time.Duration(-13) * time.Hour)
-	r.Must(os.Chtimes(tempdir+"/oldest_file", newtime, newtime), "Chtimes failed")
-	r.Must(ioutil.WriteFile(tempdir+"/next_oldest_file", []byte("moredata\n"), 0644), "WriteFile failed")
+	rtx.Must(os.Chtimes(tempdir+"/oldest_file", newtime, newtime), "Chtimes failed")
+	rtx.Must(ioutil.WriteFile(tempdir+"/next_oldest_file", []byte("moredata\n"), 0644), "WriteFile failed")
 	newtime = time.Now().Add(time.Duration(-12) * time.Hour)
-	r.Must(os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime), "Chtimes failed")
+	rtx.Must(os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime), "Chtimes failed")
 	// Set up the receiver channel.
 	foundFiles := make(chan *tarcache.LocalDataFile)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -49,7 +49,7 @@ func TestFindForeverNoDirExists(t *testing.T) {
 	defer cancel()
 	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
 	defer os.RemoveAll(tempdir)
-	r.Must(err, "Could not set up temp dir")
+	rtx.Must(err, "Could not set up temp dir")
 	go finder.FindForever(ctx, "/tmp/dne", time.Duration(time.Millisecond), nil, time.Duration(time.Millisecond))
 	time.Sleep(1 * time.Second)
 	// If the finder doesn't crash on a bad directory, then it's a success.

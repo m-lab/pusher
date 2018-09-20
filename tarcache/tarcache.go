@@ -23,7 +23,7 @@ import (
 	"github.com/m-lab/pusher/uploader"
 
 	"github.com/m-lab/go/bytecount"
-	r "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/go/rtx"
 )
 
 var (
@@ -244,13 +244,13 @@ func (t *TarCache) add(file *LocalDataFile) {
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	r.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %s", file.AbsoluteFileName)
+	rtx.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %s", file.AbsoluteFileName)
 	_, err = tf.tarWriter.Write(contents)
-	r.Must(err, "Could not write the tarfile contents for %s", file.AbsoluteFileName, err)
+	rtx.Must(err, "Could not write the tarfile contents for %s", file.AbsoluteFileName, err)
 
 	// Flush the data so that our in-memory filesize is accurate.
-	r.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
-	r.Must(tf.gzipWriter.Flush(), "Could not flush the gzipWriter")
+	rtx.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
+	rtx.Must(tf.gzipWriter.Flush(), "Could not flush the gzipWriter")
 
 	if len(tf.members) == 0 {
 		timer := time.NewTimer(t.ageThreshold)
