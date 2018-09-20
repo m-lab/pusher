@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/bytecount"
-	r "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/go/rtx"
 )
 
 type fakeUploader struct {
@@ -107,9 +107,9 @@ func TestAdd(t *testing.T) {
 	}
 	// Add the tiny file, which should not trigger an upload.
 	fileObject, err := os.Open(tempdir + "/tinyfile")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err := fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
@@ -128,9 +128,9 @@ func TestAdd(t *testing.T) {
 	}
 	// Add the big file, which should trigger an upload and file deletion.
 	fileObject, err = os.Open(tempdir + "/a/b/bigfile")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err = fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	bigFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/a/b/bigfile",
 		Info:             fileStat,
@@ -151,9 +151,9 @@ func TestAdd(t *testing.T) {
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	fileObject, err = os.Open(tempdir + "/tiny2")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err = fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tiny2File := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
@@ -186,9 +186,9 @@ func TestTimer(t *testing.T) {
 	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	// Add the small file, which should not trigger an upload.
 	fileObject, err := os.Open(tempdir + "/tinyfile")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err := fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
@@ -216,9 +216,9 @@ func TestTimer(t *testing.T) {
 	// Create a tiny file and add it.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	fileObject, err = os.Open(tempdir + "/tiny2")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err = fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tiny2File := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tiny2",
 		Info:             fileStat,
@@ -276,9 +276,9 @@ func TestEmptyUpload(t *testing.T) {
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
 	fileObject, err := os.Open(tempdir + "/tinyfile")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err := fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,
@@ -306,9 +306,9 @@ func TestUnreadableFile(t *testing.T) {
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
 	fileObject, err := os.Open(tempdir + "/tinyfile")
-	r.Must(err, "Open failed")
+	rtx.Must(err, "Open failed")
 	fileStat, err := fileObject.Stat()
-	r.Must(err, "Stat failed")
+	rtx.Must(err, "Stat failed")
 	tinyFile := LocalDataFile{
 		AbsoluteFileName: tempdir + "/tinyfile",
 		Info:             fileStat,

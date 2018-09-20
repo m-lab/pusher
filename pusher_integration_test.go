@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	rtx "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"

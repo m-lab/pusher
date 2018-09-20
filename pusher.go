@@ -9,8 +9,8 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/go/bytecount"
-	flagx "github.com/m-lab/go/flagext"
-	rtx "github.com/m-lab/go/runtimeext"
+	"github.com/m-lab/go/flagx"
+	"github.com/m-lab/go/rtx"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/m-lab/pusher/finder"
