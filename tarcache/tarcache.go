@@ -126,7 +126,7 @@ func init() {
 	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
-// A LocalDataFile is the full absolute pathname of a data file.
+// A LocalDataFile is the absolute pathname of a data file.
 type LocalDataFile string
 
 // TarCache contains everything you need to incrementally create a tarfile.
