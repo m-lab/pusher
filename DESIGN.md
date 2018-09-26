@@ -70,9 +70,9 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * Don't assume that anything you write to the target directory will be available for subsequent reading
 
-* Don't call close() on a file in the target directory and then reopen it for continued processing.
+* Don't call `close()` on a file in the target directory and then reopen it for continued processing.
 
-    * Real example: Don't save the file to disk and then use gzip to convert it to a .gz file. Instead, either generate the .gz file directly without the intermediate file, or save the intermediate somewhere else on the disk (e.g. `/tmp`) and then move the final compressed file to the data directory.
+    * Real example: Don't save the file to disk and then use gzip to convert it to a `.gz` file. Instead, either generate the `.gz` file directly without the intermediate file, or save the intermediate somewhere else on the disk (e.g. `/tmp`) and then move the final compressed file to the data directory.
 
 * Do not put any user-submitted bytes in the filenames
 
