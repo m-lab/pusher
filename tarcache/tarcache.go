@@ -126,11 +126,8 @@ func init() {
 	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
-// A LocalDataFile holds all the information we require about a file.
-type LocalDataFile struct {
-	AbsoluteFileName string
-	Info             os.FileInfo
-}
+// A LocalDataFile is the full absolute pathname of a data file.
+type LocalDataFile string
 
 // TarCache contains everything you need to incrementally create a tarfile.
 // Once enough time has passed since the first file was added OR the resulting
@@ -138,7 +135,7 @@ type LocalDataFile struct {
 // To upload a lot of tarfiles, you should only have to create one TarCache.
 // The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
-	fileChannel    <-chan *LocalDataFile
+	fileChannel    <-chan LocalDataFile
 	currentTarfile *tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   time.Duration
@@ -149,8 +146,8 @@ type TarCache struct {
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    <-chan time.Time
-	members    []*LocalDataFile
-	memberSet  map[string]struct{}
+	members    []LocalDataFile
+	memberSet  map[LocalDataFile]struct{}
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -158,13 +155,13 @@ type tarfile struct {
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- *LocalDataFile) {
+func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- LocalDataFile) {
 	if !strings.HasSuffix(rootDirectory, "/") {
 		rootDirectory += "/"
 	}
 	// By giving the channel a large buffer, we attempt to decouple file
 	// discovery event response times from any file processing times.
-	fileChannel := make(chan *LocalDataFile, 1000000)
+	fileChannel := make(chan LocalDataFile, 1000000)
 	tarCache := &TarCache{
 		fileChannel:    fileChannel,
 		rootDirectory:  rootDirectory,
@@ -189,7 +186,7 @@ func newTarfile() *tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[string]struct{}),
+		memberSet:  make(map[LocalDataFile]struct{}),
 	}
 }
 
@@ -217,26 +214,26 @@ func (t *TarCache) ListenForever(ctx context.Context) {
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
-func (t *TarCache) add(file *LocalDataFile) {
-	if warning := lintFilename(file.AbsoluteFileName); warning != nil {
+func (t *TarCache) add(filename LocalDataFile) {
+	if warning := lintFilename(filename); warning != nil {
 		log.Println("Strange filename encountered:", warning)
 		pusherStrangeFilenames.Inc()
 	}
 	tf := t.currentTarfile
-	if _, present := tf.memberSet[file.AbsoluteFileName]; present {
+	if _, present := tf.memberSet[filename]; present {
 		pusherTarfileDuplicateFiles.Inc()
-		log.Printf("Not adding %q to the tarfile a second time.\n", file.AbsoluteFileName)
+		log.Printf("Not adding %q to the tarfile a second time.\n", filename)
 		return
 	}
-	contents, err := ioutil.ReadFile(file.AbsoluteFileName)
+	contents, err := ioutil.ReadFile(string(filename))
 	if err != nil {
 		pusherFileReadErrors.Inc()
-		log.Printf("Could not read %s (error: %q)\n", file.AbsoluteFileName, err)
+		log.Printf("Could not read %s (error: %q)\n", filename, err)
 		return
 	}
 	pusherBytesPerFile.Observe(float64(len(contents)))
 	header := &tar.Header{
-		Name: strings.TrimPrefix(file.AbsoluteFileName, t.rootDirectory),
+		Name: strings.TrimPrefix(string(filename), t.rootDirectory),
 		Mode: 0666,
 		Size: int64(len(contents)),
 	}
@@ -244,9 +241,9 @@ func (t *TarCache) add(file *LocalDataFile) {
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
-	rtx.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %s", file.AbsoluteFileName)
+	rtx.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %v", filename)
 	_, err = tf.tarWriter.Write(contents)
-	rtx.Must(err, "Could not write the tarfile contents for %s", file.AbsoluteFileName, err)
+	rtx.Must(err, "Could not write the tarfile contents for %v", filename)
 
 	// Flush the data so that our in-memory filesize is accurate.
 	rtx.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
@@ -257,8 +254,8 @@ func (t *TarCache) add(file *LocalDataFile) {
 		tf.timeout = timer.C
 	}
 	pusherFilesAdded.Inc()
-	tf.members = append(tf.members, file)
-	tf.memberSet[file.AbsoluteFileName] = struct{}{}
+	tf.members = append(tf.members, filename)
+	tf.memberSet[filename] = struct{}{}
 	pusherCurrentTarfileFileCount.Set(float64(len(tf.members)))
 	pusherCurrentTarfileSize.Set(float64(tf.contents.Len()))
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
@@ -302,18 +299,19 @@ func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
 		// remove call failed for some unknown reason (permissions, maybe?). If the
 		// file still exists after this attempted remove, then it should eventually
 		// get picked up by the finder.
-		if err := os.Remove(file.AbsoluteFileName); err == nil {
+		if err := os.Remove(string(file)); err == nil {
 			pusherFilesRemoved.Inc()
 		} else {
 			pusherFileRemoveErrors.Inc()
-			log.Printf("Failed to remove %s (error: %q)\n", file.AbsoluteFileName, err)
+			log.Printf("Failed to remove %v (error: %q)\n", file, err)
 		}
 	}
 }
 
 // lintFilename returns nil if the file has a normal name, and an explanatory
 // error about why the name is strange otherwise.
-func lintFilename(name string) error {
+func lintFilename(ldf LocalDataFile) error {
+	name := string(ldf)
 	cleaned := path.Clean(name)
 	if cleaned != name {
 		return fmt.Errorf("The cleaned up path %q did not match the name of the passed-in file %q", cleaned, name)

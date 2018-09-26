@@ -44,13 +44,13 @@ func init() {
 // file listener.
 type Listener struct {
 	events      chan notify.EventInfo
-	fileChannel chan<- *tarcache.LocalDataFile
+	fileChannel chan<- tarcache.LocalDataFile
 }
 
 // Create and set up an inotify watcher on the directory and its
 // subdirectories.  File events will be converted into `tarcache.LocalDataFile`
 // structs and pointers to those structs will sent to the passed-in channel.
-func Create(directory string, fileChannel chan<- *tarcache.LocalDataFile) (*Listener, error) {
+func Create(directory string, fileChannel chan<- tarcache.LocalDataFile) (*Listener, error) {
 	listener := &Listener{
 		events:      make(chan notify.EventInfo, 1000000),
 		fileChannel: fileChannel,
@@ -79,32 +79,21 @@ func (l *Listener) ListenForever(ctx context.Context) {
 				source = "movedto"
 			}
 			pusherFileEventCount.WithLabelValues(source).Inc()
-			ldf, err := convertEventInfoToLocalDataFile(ei.Path())
-			if err != nil {
-				log.Printf("Could not create file for event: %v\n", ei)
+			if !isOpenable(ei.Path()) {
+				log.Printf("Could not open file for event: %v\n", ei)
 				continue
 			}
-			l.fileChannel <- ldf
+			l.fileChannel <- tarcache.LocalDataFile(ei.Path())
 		}
 	}
 
 }
 
-func convertEventInfoToLocalDataFile(path string) (*tarcache.LocalDataFile, error) {
-	file, err := osOpen(path)
+func isOpenable(path string) bool {
+	_, err := osOpen(path)
 	if err != nil {
 		pusherFileEventErrorCount.WithLabelValues("open").Inc()
-		return nil, err
+		return false
 	}
-	info, err := file.Stat()
-	if err != nil {
-		// It is a rare file on a strange/broken filesystem that can be open()ed, but
-		// not fstat()ed.  This should hopefully never happen in practice.
-		pusherFileEventErrorCount.WithLabelValues("stat").Inc()
-		return nil, err
-	}
-	return &tarcache.LocalDataFile{
-		AbsoluteFileName: path,
-		Info:             info,
-	}, nil
+	return true
 }

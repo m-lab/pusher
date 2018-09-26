@@ -51,10 +51,10 @@ func init() {
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDataFile, error) {
+func findFiles(directory string, minFileAge time.Duration) []tarcache.LocalDataFile {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
-	eligibleFiles := make([]*tarcache.LocalDataFile, 0, 1024)
+	eligibleFiles := make(map[tarcache.LocalDataFile]os.FileInfo)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
@@ -67,19 +67,14 @@ func findFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			localDataFile := &tarcache.LocalDataFile{
-				AbsoluteFileName: path,
-				Info:             info,
-			}
-			eligibleFiles = append(eligibleFiles, localDataFile)
+			eligibleFiles[tarcache.LocalDataFile(path)] = info
 			totalEligibleSize += info.Size()
 		}
 		return nil
 	})
 
 	if err != nil {
-		log.Printf("Could not walk %s (err=%s)", directory, err)
-		return eligibleFiles, err
+		log.Printf("Could not walk %s (err=%s). Proceeding with any discovered files.", directory, err)
 	}
 
 	pusherFinderRuns.Inc()
@@ -87,10 +82,16 @@ func findFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 	pusherFinderBytes.Add(float64(totalEligibleSize))
 
 	// Sort the files by mtime
-	sort.Slice(eligibleFiles, func(i, j int) bool {
-		return eligibleFiles[i].Info.ModTime().Before(eligibleFiles[j].Info.ModTime())
+	fileList := make([]tarcache.LocalDataFile, 0, len(eligibleFiles))
+	for f := range eligibleFiles {
+		fileList = append(fileList, f)
+	}
+	sort.Slice(fileList, func(i, j int) bool {
+		iInfo := eligibleFiles[fileList[i]]
+		jInfo := eligibleFiles[fileList[j]]
+		return iInfo.ModTime().Before(jInfo.ModTime())
 	})
-	return eligibleFiles, nil
+	return fileList
 }
 
 // FindForever repeatedly runs FindFiles until its context is canceled.
@@ -102,7 +103,7 @@ func findFiles(directory string, minFileAge time.Duration) ([]*tarcache.LocalDat
 // IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
 // exponential distribution and that the time-distribution of `find` operations
 // is therefore memoryless.
-func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- *tarcache.LocalDataFile, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- tarcache.LocalDataFile, expectedSleepTime time.Duration) {
 	for {
 		sleepTime := time.Duration(rand.ExpFloat64()*float64(expectedSleepTime.Nanoseconds())) * time.Nanosecond
 		select {
@@ -111,12 +112,7 @@ func FindForever(ctx context.Context, directory string, maxFileAge time.Duration
 		case <-time.NewTimer(sleepTime).C:
 		}
 
-		files, err := findFiles(directory, maxFileAge)
-		if err != nil {
-			log.Printf("Could not FindFiles: %v", err)
-			continue
-		}
-
+		files := findFiles(directory, maxFileAge)
 		for _, file := range files {
 			notificationChannel <- file
 		}

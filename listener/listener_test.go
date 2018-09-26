@@ -20,7 +20,7 @@ func TestListenForClose(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan *tarcache.LocalDataFile)
+	ldfChan := make(chan tarcache.LocalDataFile)
 	l, err := listener.Create(dir, ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
@@ -31,8 +31,8 @@ func TestListenForClose(t *testing.T) {
 	go l.ListenForever(ctx)
 	ioutil.WriteFile(dir+"/testfile", []byte("test"), 0777)
 	ldf := <-ldfChan
-	if !strings.HasSuffix(ldf.AbsoluteFileName, "/testfile") || !strings.HasPrefix(ldf.AbsoluteFileName, "/tmp/TestListenForClose.") {
-		t.Errorf("Bad filename: %q\n", ldf.AbsoluteFileName)
+	if !strings.HasSuffix(string(ldf), "/testfile") || !strings.HasPrefix(string(ldf), "/tmp/TestListenForClose.") {
+		t.Errorf("Bad filename: %v\n", ldf)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestListenForMove(t *testing.T) {
 	defer os.RemoveAll(dir)
 	os.Mkdir(dir+"/subdir", 0777)
 	ioutil.WriteFile(dir+"/testfile", []byte("test"), 0777)
-	ldfChan := make(chan *tarcache.LocalDataFile)
+	ldfChan := make(chan tarcache.LocalDataFile)
 	l, err := listener.Create(dir+"/subdir", ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
@@ -60,8 +60,8 @@ func TestListenForMove(t *testing.T) {
 		return
 	}
 	ldf := <-ldfChan
-	if !strings.HasSuffix(ldf.AbsoluteFileName, "/subdir/testfile") || !strings.HasPrefix(ldf.AbsoluteFileName, "/tmp/TestListenForMove.") {
-		t.Errorf("Bad filename: %q\n", ldf.AbsoluteFileName)
+	if !strings.HasSuffix(string(ldf), "/subdir/testfile") || !strings.HasPrefix(string(ldf), "/tmp/TestListenForMove.") {
+		t.Errorf("Bad filename: %v\n", ldf)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestListenInSubdir(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	os.Mkdir(dir+"/subdir", 0777)
-	ldfChan := make(chan *tarcache.LocalDataFile)
+	ldfChan := make(chan tarcache.LocalDataFile)
 	l, err := listener.Create(dir+"/subdir", ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
@@ -87,8 +87,8 @@ func TestListenInSubdir(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	ioutil.WriteFile(dir+"/subdir/sub1/sub2/testfile", []byte("testdata"), 0777)
 	ldf := <-ldfChan
-	if dir+"/subdir/sub1/sub2/testfile" != ldf.AbsoluteFileName {
-		t.Errorf("Bad filename: %q\n", ldf.AbsoluteFileName)
+	if dir+"/subdir/sub1/sub2/testfile" != string(ldf) {
+		t.Errorf("Bad filename: %v\n", ldf)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestCreateOnBadDir(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan *tarcache.LocalDataFile)
+	ldfChan := make(chan tarcache.LocalDataFile)
 	l, err := listener.Create(dir+"/doesnotexist", ldfChan)
 	if l != nil || err == nil {
 		t.Error("Should have had an error")
