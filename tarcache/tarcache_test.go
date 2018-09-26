@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/m-lab/go/bytecount"
-	"github.com/m-lab/go/rtx"
 )
 
 type fakeUploader struct {
@@ -106,17 +105,10 @@ func TestAdd(t *testing.T) {
 		t.Errorf("The file should be of zero length and is not (%d != 0)", tarCache.currentTarfile.contents.Len())
 	}
 	// Add the tiny file, which should not trigger an upload.
-	fileObject, err := os.Open(tempdir + "/tinyfile")
-	rtx.Must(err, "Open failed")
-	fileStat, err := fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tinyFile := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tinyfile",
-		Info:             fileStat,
-	}
-	tarCache.add(&tinyFile)
+	tinyFile := LocalDataFile(tempdir + "/tinyfile")
+	tarCache.add(tinyFile)
 	// Add the tiny file a second time, which should not do anything at all.
-	tarCache.add(&tinyFile)
+	tarCache.add(tinyFile)
 	if tarCache.currentTarfile.contents.Len() == 0 {
 		t.Errorf("The file should be of nonzero length and is not (%d == 0)", tarCache.currentTarfile.contents.Len())
 	}
@@ -127,15 +119,8 @@ func TestAdd(t *testing.T) {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Add the big file, which should trigger an upload and file deletion.
-	fileObject, err = os.Open(tempdir + "/a/b/bigfile")
-	rtx.Must(err, "Open failed")
-	fileStat, err = fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	bigFile := LocalDataFile{
-		AbsoluteFileName: tempdir + "/a/b/bigfile",
-		Info:             fileStat,
-	}
-	tarCache.add(&bigFile)
+	bigFile := LocalDataFile(tempdir + "/a/b/bigfile")
+	tarCache.add(bigFile)
 	if uploader.calls == 0 {
 		t.Error("uploader.calls should be >0 ")
 	}
@@ -150,18 +135,11 @@ func TestAdd(t *testing.T) {
 			{name: "a/b/bigfile", size: 2000}})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
-	fileObject, err = os.Open(tempdir + "/tiny2")
-	rtx.Must(err, "Open failed")
-	fileStat, err = fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tiny2File := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tiny2",
-		Info:             fileStat,
-	}
+	tiny2File := LocalDataFile(tempdir + "/tiny2")
 	if len(tarCache.currentTarfile.members) != 0 || tarCache.currentTarfile.contents.Len() != 0 {
 		t.Error("Failed to clear the cache after upload")
 	}
-	tarCache.add(&tiny2File)
+	tarCache.add(tiny2File)
 	if len(tarCache.currentTarfile.members) != 1 || tarCache.currentTarfile.contents.Len() == 0 {
 		t.Error("Failed to add the new file after upload")
 	}
@@ -185,17 +163,10 @@ func TestTimer(t *testing.T) {
 	uploader := fakeUploader{}
 	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	// Add the small file, which should not trigger an upload.
-	fileObject, err := os.Open(tempdir + "/tinyfile")
-	rtx.Must(err, "Open failed")
-	fileStat, err := fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tinyFile := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tinyfile",
-		Info:             fileStat,
-	}
+	tinyFile := LocalDataFile(tempdir + "/tinyfile")
 	ctx := context.Background()
 	go tarCache.ListenForever(ctx)
-	channel <- &tinyFile
+	channel <- tinyFile
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
@@ -215,15 +186,8 @@ func TestTimer(t *testing.T) {
 	}
 	// Create a tiny file and add it.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
-	fileObject, err = os.Open(tempdir + "/tiny2")
-	rtx.Must(err, "Open failed")
-	fileStat, err = fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tiny2File := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tiny2",
-		Info:             fileStat,
-	}
-	channel <- &tiny2File
+	tiny2File := LocalDataFile(tempdir + "/tiny2")
+	channel <- tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
@@ -275,15 +239,7 @@ func TestEmptyUpload(t *testing.T) {
 
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
-	fileObject, err := os.Open(tempdir + "/tinyfile")
-	rtx.Must(err, "Open failed")
-	fileStat, err := fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tinyFile := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tinyfile",
-		Info:             fileStat,
-	}
-	tarCache.add(&tinyFile)
+	tarCache.add(LocalDataFile(tempdir + "/tinyfile"))
 
 	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
 		t.Errorf("Could not remove the tinyfile: %v", err)
@@ -303,21 +259,8 @@ func TestUnreadableFile(t *testing.T) {
 	uploader := fakeUploader{}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
-	// Add the small file, which should not trigger an upload.
-	fileObject, err := os.Open(tempdir + "/tinyfile")
-	rtx.Must(err, "Open failed")
-	fileStat, err := fileObject.Stat()
-	rtx.Must(err, "Stat failed")
-	tinyFile := LocalDataFile{
-		AbsoluteFileName: tempdir + "/tinyfile",
-		Info:             fileStat,
-	}
-	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
-		t.Errorf("Could not remove the tinyfile: %v", err)
-	}
-	// This should not crash, even though we removed the tinyfile out from underneath the uploader.
-	tarCache.add(&tinyFile)
+	// This should not crash, even though the file does not exist.
+	tarCache.add(LocalDataFile(tempdir + "/dne"))
 	if len(tarCache.currentTarfile.members) != 0 {
 		t.Error("We added a nonexistent file to the tarCache.")
 	}
@@ -331,7 +274,7 @@ func TestLintFilename(t *testing.T) {
 		"dir/.../file.gz",
 		"dir/only_a_dir/",
 	} {
-		if lintFilename(badString) == nil {
+		if lintFilename(LocalDataFile(badString)) == nil {
 			t.Errorf("Should have had a lint error on %q", badString)
 		}
 	}
@@ -339,7 +282,7 @@ func TestLintFilename(t *testing.T) {
 		"ndt/2009/03/13/file.gz",
 		"experiment_2/2013/01/01/subdirectory/file.tgz",
 	} {
-		if warning := lintFilename(goodString); warning != nil {
+		if warning := lintFilename(LocalDataFile(goodString)); warning != nil {
 			t.Errorf("Linter gave warning %v on %q", warning, goodString)
 		}
 	}

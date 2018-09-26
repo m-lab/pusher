@@ -20,22 +20,8 @@ func failOnOpen(name string) (*os.File, error) {
 func TestOsOpenFailure(t *testing.T) {
 	osOpen = failOnOpen
 	defer func() { osOpen = os.Open }()
-	ptr, err := convertEventInfoToLocalDataFile("")
-	if ptr != nil || err == nil {
-		t.Error("convertEventInfo should have had an error but did not")
-	}
-}
-
-func openFileThatFailsOnStat(name string) (*os.File, error) {
-	return nil, nil
-}
-
-func TestStatFailure(t *testing.T) {
-	osOpen = openFileThatFailsOnStat
-	defer func() { osOpen = os.Open }()
-	ptr, err := convertEventInfoToLocalDataFile("")
-	if ptr != nil || err == nil {
-		t.Error("convertEventInfo should have had an error but did not")
+	if isOpenable("") {
+		t.Error("isOpenable should return false")
 	}
 }
 
@@ -60,7 +46,7 @@ func TestBadEvent(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan *tarcache.LocalDataFile)
+	ldfChan := make(chan tarcache.LocalDataFile)
 	l, err := Create(dir, ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
