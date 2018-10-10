@@ -112,7 +112,7 @@ The file channel takes in the information about files that should be uploaded an
 
 The namer generates names for the tarfiles based on the mlab node name, the experiment name, and the UTC timestamp of the upload time. The upload time is used (as opposed to the minimum file mtime or anything else like that) because it is the only counter that (local time adjustments aside) can be depended upon to monotonically increase, and as such is guaranteed not to generate collisions in the produced file name. The names it generates should look like:
 
-`ndt/2006/01/02/20060102T150405.000Z-mlab1-lax03-ndt.tgz`
+`ndt/2006/01/02/20060102T150405.000000Z-mlab1-lax03-ndt.tgz`
 
 ### 5.5. Tar Cache
 

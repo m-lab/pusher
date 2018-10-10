@@ -13,12 +13,12 @@ func TestFilenameGeneration(t *testing.T) {
 		out string
 	}{
 		{
-			in:  time.Date(2018, 5, 6, 15, 1, 2, 44000000, time.UTC),
-			out: "exp/2018/05/06/20180506T150102.044Z-mlab6-lga0t-exp.tgz",
+			in:  time.Date(2018, 5, 6, 15, 1, 2, 44001000, time.UTC),
+			out: "exp/2018/05/06/20180506T150102.044001Z-mlab6-lga0t-exp.tgz",
 		},
 		{
 			in:  time.Date(2008, 1, 1, 0, 0, 0, 0, time.UTC),
-			out: "exp/2008/01/01/20080101T000000.000Z-mlab6-lga0t-exp.tgz",
+			out: "exp/2008/01/01/20080101T000000.000000Z-mlab6-lga0t-exp.tgz",
 		},
 	}
 	namer, err := namer.New("exp", "mlab6.lga0t")
@@ -43,7 +43,7 @@ func TestNew(t *testing.T) {
 		{
 			name:        "success",
 			nodeName:    "mlab5.abc0t.measurement-lab.org",
-			wantObjName: "fake-experiment/2011/03/04/20110304T124500.000Z-mlab5-abc0t-fake-experiment.tgz",
+			wantObjName: "fake-experiment/2011/03/04/20110304T124500.000000Z-mlab5-abc0t-fake-experiment.tgz",
 		},
 		{
 			name:     "failure-machine-too-short",
