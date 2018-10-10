@@ -38,6 +38,6 @@ func New(experiment string, nodeName string) (Namer, error) {
 // ObjectName returns a string (with a leading '/') representing the correct
 // filename for an uploaded tarfile in a bucket.
 func (n namer) ObjectName(t time.Time) string {
-	timestring := t.Format("2006/01/02/20060102T150405.000Z")
+	timestring := t.Format("2006/01/02/20060102T150405.000000Z")
 	return (n.experiment + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
 }
