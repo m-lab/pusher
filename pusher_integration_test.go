@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
@@ -32,26 +33,19 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 	}
 	// Set up the environment variables.
 	type TempEnvVar struct {
-		name, value, oldValue string
+		name, value string
 	}
 	newVars := []TempEnvVar{
-		{"PROJECT", "mlab-testing", ""},
-		{"DIRECTORY", tempdir, ""},
-		{"BUCKET", "archive-mlab-testing", ""},
-		{"EXPERIMENT", "exp", ""},
-		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org", ""},
+		{"PROJECT", "mlab-testing"},
+		{"DIRECTORY", tempdir},
+		{"BUCKET", "archive-mlab-testing"},
+		{"EXPERIMENT", "exp"},
+		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org"},
 	}
 	for i := range newVars {
-		newVars[i].oldValue = os.Getenv(newVars[i].name)
-		rtx.Must(os.Setenv(newVars[i].name, newVars[i].value), "Could not set env var")
+		revert := osx.MustSetenv(newVars[i].name, newVars[i].value)
+		defer revert()
 	}
-	defer func() {
-		for _, v := range newVars {
-			if v.oldValue != "" {
-				rtx.Must(os.Setenv(v.name, v.oldValue), "Could not reset env var")
-			}
-		}
-	}()
 	go func() {
 		// Wait 2 seconds to lose all race conditions.
 		time.Sleep(2 * time.Second)
