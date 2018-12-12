@@ -28,11 +28,11 @@ Inotify event delivery is not guaranteed. Servers may be power-cycled unexpected
 
 The pusher service will run in a container, and the target directory (e.g. `/var/spool/<experiment>`) will be mounted in both the filesystem of the experiment container and the filesystem of the pusher container. As the experiment writes data files to that directory, the pusher builds up an in-memory tarfile and uploads it to GCS with an appropriate name once the size or age thresholds are met for the tarfile contents.
 
-The final system ends up being pretty radically simple (and small - only 619 lines of Go for the main code and 922 lines for the unit and integration tests), which, to the authors of this doc, is the sign of a well-designed solution fitting inside a well-designed system.
+The final system ends up being pretty radically simple (and small - only 645 lines of Go for the main code and 876 lines for the unit and integration tests), which, to the authors of this doc, is the sign of a well-designed solution fitting inside a well-designed system.
 
 ## 4. Pusher's API Contract
 
-Pusher will monitor one directory, and all subdirectories of that directory, for the appearance of new, complete files. As files appear, they will be added to an in-memory compressed tarfile. When the tarfile is big enough or old enough, it will be uploaded to a bucket in Google Cloud Storage and named appropriately.
+Pusher will monitor one directory, and all subdirectories of that directory, for the appearance of new, complete files. As files appear, they will be added to an in-memory compressed tarfile corresponding to the subdirectory being written to (up to three levels deep). When a tarfile is big enough or old enough, it will be uploaded to a bucket in Google Cloud Storage and named appropriately.
 
 Pusher requires that the files it uploads be:
 
@@ -52,7 +52,7 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * One data file per test result (e.g. one upload test should create one file)
 
-* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/2008/04/22/15:04:05.0001212.results.txt`
+* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/2008/04/22/15:04:05.0001212.results.txt`. If you do this, pusher will make the additional guarantee that files written to the directory YYYY/MM/DD will appear in a tarfile contained in the directory path YYYY/MM/DD on Google Cloud Storage.
 
 * Feel free to put IP addresses in the file name if that makes sense for your experiment, but make sure your code works with both IPv4 and IPv6.
 
@@ -60,7 +60,7 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * Add some sort of fixed string to the main body of the filename so that even if every component string ends up null, you won't write to a file named just `.gz` (a real example we have had happen to us in a real experiment - that file was very hard to notice, thanks to shell file hiding rules).
 
-* Ensure that any and all filenames passed in pass the tests of [the filename linter in the TarCache module](https://github.com/m-lab/pusher/blob/master/tarcache/tarcache.go#L307).
+* Ensure that any and all filenames passed in pass the tests of [the filename linter in the TarCache module](https://github.com/m-lab/pusher/blob/master/tarcache/tarcache.go#L269).
 
 #### Don't
 
@@ -78,7 +78,7 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
     * Do not use reverse-DNS to generate file names or pieces of file names
 
-    * Almost anything in the file contents is fine, but random or user-submitted bytes in filenames is just asking for trouble. 
+    * Almost anything in the file contents is fine, but random or user-submitted bytes in filenames is just asking for trouble.
 
 * Don’t remove files created in the target directory. Pusher will do that after successful upload.
 
@@ -90,7 +90,7 @@ The service requires us to listen for the creation of files, occasionally search
 
 All blue boxes in the diagram have corresponding Go modules in the Pusher code.
 
-Pusher will run on the M-Lab node in its own container as a sidecar to the experiment container, and its only point of contact with the experiment container that generates data will be the single target directory that is mounted by both pusher and the experiment. If multiple different types of experiment are room by a single container, then that container should have multiple pusher sidecars attached, each listening to an independent directory. 
+Pusher will run on the M-Lab node in its own container as a sidecar to the experiment container, and its only point of contact with the experiment container that generates data will be the single target directory that is mounted by both pusher and the experiment. If multiple different types of experiment are room by a single container, then that container should have multiple pusher sidecars attached, each listening to an independent directory.
 
 Pusher generates monitoring metrics available for Prometheus, on a configured port.
 
@@ -110,9 +110,11 @@ The file channel takes in the information about files that should be uploaded an
 
 ### 5.4. Namer
 
-The namer generates names for the tarfiles based on the mlab node name, the experiment name, and the UTC timestamp of the upload time. The upload time is used (as opposed to the minimum file mtime or anything else like that) because it is the only counter that (local time adjustments aside) can be depended upon to monotonically increase, and as such is guaranteed not to generate collisions in the produced file name. The names it generates should look like:
+The namer generates names for the tarfiles based on the mlab node name, the experiment name, the subdirectory the data was written to, and the UTC timestamp of the upload time. The upload time is used (as opposed to the minimum file mtime or anything else like that) because it is the only counter that (local time adjustments aside) can be depended upon to monotonically increase, and as such is guaranteed not to generate collisions in the produced file name. The names it generates should look like:
 
-`ndt/2006/01/02/20060102T150405.000000Z-mlab1-lax03-ndt.tgz`
+`ndt/2006/01/02/20161112T150405.000000Z-mlab1-lax03-ndt.tgz`
+
+The date in the path directories is the date the data is about (according to the experiment), and the timestamp in the filename is the time at which the file was uploaded.
 
 ### 5.5. Tar Cache
 
