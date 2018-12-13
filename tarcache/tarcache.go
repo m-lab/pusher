@@ -132,11 +132,11 @@ func (l LocalDataFile) Subdir() string {
 		log.Printf("File handed to the tarcache is not in a subdirectory: %v is not split by /", l)
 		return ""
 	}
-	subdir := ""
-	for i := 0; i < len(dirs)-1 && i < 3; i++ {
-		subdir += dirs[i] + "/"
+	k := len(dirs) - 1
+	if k > 3 {
+		k = 3
 	}
-	return subdir
+	return strings.Join(dirs[:k], "/")
 }
 
 // TarCache contains everything you need to incrementally create a tarfile.

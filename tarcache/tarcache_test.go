@@ -104,7 +104,7 @@ func TestAdd(t *testing.T) {
 
 	uploader := fakeUploader{
 		requestedRetries: 1,
-		expectedDir:      tempdir + "/",
+		expectedDir:      tempdir,
 	}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
@@ -238,7 +238,6 @@ func TestChannelCloseCancellation(t *testing.T) {
 
 func TestEmptyUpload(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestEmptyUpload")
-	tempdir += "/"
 	defer os.RemoveAll(tempdir)
 	if err != nil {
 		t.Error(err)
@@ -307,12 +306,12 @@ func TestLintFilename(t *testing.T) {
 
 func TestSubdir(t *testing.T) {
 	for _, test := range []struct{ in, out string }{
-		{in: "2009/01/01/tes/", out: "2009/01/01/"},
-		{in: "2009/01/test", out: "2009/01/"},
-		{in: "2009/test", out: "2009/"},
+		{in: "2009/01/01/tes/", out: "2009/01/01"},
+		{in: "2009/01/test", out: "2009/01"},
+		{in: "2009/test", out: "2009"},
 		{in: "test", out: ""},
-		{in: "2009/01/01/subdir/test", out: "2009/01/01/"},
-		{in: "/tmp/test", out: "/tmp/"},
+		{in: "2009/01/01/subdir/test", out: "2009/01/01"},
+		{in: "/tmp/test", out: "/tmp"},
 	} {
 		out := LocalDataFile(test.in).Subdir()
 		if out != test.out {
