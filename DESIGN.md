@@ -52,7 +52,7 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * One data file per test result (e.g. one upload test should create one file)
 
-* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/2008/04/22/15:04:05.0001212.results.txt`. If you do this, pusher will make the additional guarantee that files written to the directory YYYY/MM/DD will appear in a tarfile contained in the directory path YYYY/MM/DD on Google Cloud Storage.
+* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/2008/04/22/20080422Z15:04:05.0001212.results.txt`. If you do this, pusher will make the additional guarantee that files written to the directory YYYY/MM/DD will appear in a tarfile contained in the directory path YYYY/MM/DD on Google Cloud Storage.
 
 * Feel free to put IP addresses in the file name if that makes sense for your experiment, but make sure your code works with both IPv4 and IPv6.
 
@@ -118,7 +118,7 @@ The date in the path directories is the date the data is about (according to the
 
 ### 5.5. Tar Cache
 
-This is the heart of the system. It gradually builds up in-memory tarfiles, and then when those in-memory tarfiles exceed a size or age threshold (configurable, but 20MB and 2 hours have been suggested as good starting points) the file is uploaded.
+This is the heart of the system. It gradually builds up in-memory tarfiles, and then when those in-memory tarfiles exceed a size or age threshold (configurable, but 20MB and 2 hours have been suggested as good starting points) the file is uploaded.  A single TarCache will only read one file at a time from the hard drive in an effort to keep pusher's IOP load low.
 
 After successful upload of a tarfile, all its component files are deleted. If the upload fails, the upload is retried until it finally succeeds using exponential backoff (with sensible bounds to prevent too-large growth in the backoff time). During a period of GCS outage, file names and metadata will be buffered internally, but no new file contents are read until the upload has succeeded. We should not and will not buffer file contents in RAM if we can't upload file contents successfully.
 

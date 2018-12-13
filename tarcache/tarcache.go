@@ -7,8 +7,9 @@ import (
 	"archive/tar"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -214,25 +215,35 @@ func (t *TarCache) add(filename LocalDataFile) {
 		log.Printf("Not adding %q to the tarfile a second time.\n", filename)
 		return
 	}
-	contents, err := ioutil.ReadFile(string(filename))
+	file, err := os.Open(string(filename))
 	if err != nil {
 		pusherFileReadErrors.Inc()
 		log.Printf("Could not read %s (error: %q)\n", filename, err)
 		return
 	}
-	pusherBytesPerFile.Observe(float64(len(contents)))
+	fstat, err := file.Stat()
+	if err != nil {
+		pusherFileReadErrors.Inc()
+		log.Printf("Could not stat %s (error: %q)\n", filename, err)
+		return
+	}
+	size := fstat.Size()
+	pusherBytesPerFile.Observe(float64(size))
 	header := &tar.Header{
 		Name: strings.TrimPrefix(string(filename), t.rootDirectory),
 		Mode: 0666,
-		Size: int64(len(contents)),
+		Size: size,
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
 	rtx.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %v", filename)
-	_, err = tf.tarWriter.Write(contents)
+	written, err := io.Copy(tf.tarWriter, file)
 	rtx.Must(err, "Could not write the tarfile contents for %v", filename)
+	if written != size {
+		log.Fatalf("Wrote %d bytes for file %q instead of its length of %d bytes.", written, filename, size)
+	}
 
 	// Flush the data so that our in-memory filesize is accurate.
 	rtx.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
