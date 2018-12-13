@@ -9,7 +9,7 @@ import (
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/finder"
-	"github.com/m-lab/pusher/tarcache"
+	"github.com/m-lab/pusher/tarfile"
 )
 
 func TestFindForever(t *testing.T) {
@@ -25,11 +25,11 @@ func TestFindForever(t *testing.T) {
 	newtime = time.Now().Add(time.Duration(-12) * time.Hour)
 	rtx.Must(os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime), "Chtimes failed")
 	// Set up the receiver channel.
-	foundFiles := make(chan tarcache.LocalDataFile)
+	foundFiles := make(chan tarfile.LocalDataFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go finder.FindForever(ctx, tempdir, time.Duration(6)*time.Hour, foundFiles, 1*time.Microsecond)
-	localfiles := []tarcache.LocalDataFile{
+	localfiles := []tarfile.LocalDataFile{
 		<-foundFiles,
 		<-foundFiles,
 	}
