@@ -201,10 +201,17 @@ func (t *tarfile) Add(cleanedFilename LocalDataFile, file osFile, timerFactory f
 		return
 	}
 	size := fstat.Size()
+	pusherBytesPerFile.Observe(float64(size))
 	// We read the file into memory instead of using io.Copy because if the use of
-	// io.Copy goes wrong, then we have to make the error fatal, while the reading
-	// of disk into RAM, if it goes wrong, simply causes us to ignore the file and
-	// return.
+	// io.Copy goes wrong, then we have to make the error fatal (because the
+	// already-written tarfile headers are now wrong), while the reading of disk
+	// into RAM, if it goes wrong, simply causes us to ignore the file and return.
+	//
+	// As things stand we have to choose between mitigating the risk of too-large
+	// files or mitigating the risk of unreadable files. The code below mitigates
+	// the risk of unreadable files. If too-large files become a problem, delete
+	// everything up to the declaration of the header and then replace the
+	// `tarWriter.Write(contents)` line with `io.Copy(tarWriter, file)`.
 	contents := make([]byte, size)
 	if n, err := file.Read(contents); int64(n) != size || err != nil {
 		pusherFileReadErrors.Inc()
@@ -216,7 +223,6 @@ func (t *tarfile) Add(cleanedFilename LocalDataFile, file osFile, timerFactory f
 		log.Printf("Could not after reading %d bytes, %s was not at EOF (error: %q)\n", size, cleanedFilename, err)
 		return
 	}
-	pusherBytesPerFile.Observe(float64(size))
 	header := &tar.Header{
 		Name: string(cleanedFilename),
 		Mode: 0666,
