@@ -4,9 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -100,7 +103,9 @@ func init() {
 // A LocalDataFile is the pathname of a data file.
 type LocalDataFile string
 
-// Subdir returns the subdirectory of the LocalDataFile, up to 3 levels deep.
+// Subdir returns the subdirectory of the LocalDataFile, up to 3 levels deep. It
+// is only guaranteed to work right on relative path names, suitable for
+// inclusion in tarfiles.
 func (l LocalDataFile) Subdir() string {
 	dirs := strings.Split(string(l), "/")
 	if len(dirs) <= 1 {
@@ -112,6 +117,32 @@ func (l LocalDataFile) Subdir() string {
 		k = 3
 	}
 	return strings.Join(dirs[:k], "/")
+}
+
+// Lint returns nil if the file has a normal name, and an explanatory error
+// about why the name is strange otherwise.
+func (l LocalDataFile) Lint() error {
+	name := string(l)
+	cleaned := path.Clean(name)
+	if cleaned != name {
+		return fmt.Errorf("The cleaned up path %q did not match the name of the passed-in file %q", cleaned, name)
+	}
+	d, f := path.Split(name)
+	if strings.HasPrefix(f, ".") {
+		return fmt.Errorf("Hidden file detected: %q", name)
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("Too many dots in %v", name)
+	}
+	invalidChars := regexp.MustCompile(`[^a-zA-Z0-9/:._-]`)
+	if invalidChars.MatchString(name) {
+		return fmt.Errorf("Strange characters detected in the filename %q", name)
+	}
+	recommendedFormat := regexp.MustCompile(`^[a-zA-Z0-9_-]+/20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
+	if !recommendedFormat.MatchString(d) {
+		return fmt.Errorf("Directory structure does not mirror our best practices for file %v", name)
+	}
+	return nil
 }
 
 // A tarfile represents a single tar file containing data for upload
@@ -127,7 +158,7 @@ type tarfile struct {
 
 // Tarfile represents all the capabilities of a tarfile.  You can add files to it, upload it, and check its size.
 type Tarfile interface {
-	Add(LocalDataFile, *os.File, func(string) *time.Timer)
+	Add(LocalDataFile, osFile, func(string) *time.Timer)
 	UploadAndDelete(uploader uploader.Uploader)
 	Size() bytecount.ByteCount
 }
@@ -148,7 +179,16 @@ func New(dir string) Tarfile {
 	}
 }
 
-func (t *tarfile) Add(cleanedFilename LocalDataFile, file *os.File, timerFactory func(string) *time.Timer) {
+// osFile exists to allow fake files to be handed to the Add() method to allow
+// the testing of error conditions. All os.File objects satisfy this interface.
+type osFile interface {
+	io.ReadCloser
+	Stat() (os.FileInfo, error)
+}
+
+// Add adds a single file to the tarfile, and starts a timer if the file is the
+// first file added.
+func (t *tarfile) Add(cleanedFilename LocalDataFile, file osFile, timerFactory func(string) *time.Timer) {
 	if _, present := t.memberSet[cleanedFilename]; present {
 		pusherTarfileDuplicateFiles.Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
@@ -161,6 +201,21 @@ func (t *tarfile) Add(cleanedFilename LocalDataFile, file *os.File, timerFactory
 		return
 	}
 	size := fstat.Size()
+	// We read the file into memory instead of using io.Copy because if the use of
+	// io.Copy goes wrong, then we have to make the error fatal, while the reading
+	// of disk into RAM, if it goes wrong, simply causes us to ignore the file and
+	// return.
+	contents := make([]byte, size)
+	if n, err := file.Read(contents); int64(n) != size || err != nil {
+		pusherFileReadErrors.Inc()
+		log.Printf("Could not read %s (error: %q)\n", cleanedFilename, err)
+		return
+	}
+	if n, err := file.Read(make([]byte, 1)); n != 0 || err != io.EOF {
+		pusherFileReadErrors.Inc()
+		log.Printf("Could not after reading %d bytes, %s was not at EOF (error: %q)\n", size, cleanedFilename, err)
+		return
+	}
 	pusherBytesPerFile.Observe(float64(size))
 	header := &tar.Header{
 		Name: string(cleanedFilename),
@@ -172,11 +227,8 @@ func (t *tarfile) Add(cleanedFilename LocalDataFile, file *os.File, timerFactory
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
 	rtx.Must(t.tarWriter.WriteHeader(header), "Could not write the tarfile header for %v", cleanedFilename)
-	written, err := io.Copy(t.tarWriter, file)
+	_, err = t.tarWriter.Write(contents)
 	rtx.Must(err, "Could not write the tarfile contents for %v", cleanedFilename)
-	if written != size {
-		log.Fatalf("Wrote %d bytes for file %q instead of its length of %d bytes.", written, cleanedFilename, size)
-	}
 
 	// Flush the data so that our in-memory filesize is accurate.
 	rtx.Must(t.tarWriter.Flush(), "Could not flush the tarWriter")

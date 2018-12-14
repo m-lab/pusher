@@ -5,11 +5,8 @@ package tarcache
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
-	"path"
-	"regexp"
 	"strings"
 	"time"
 
@@ -111,7 +108,8 @@ func (t *TarCache) makeTimer(subdir string) *time.Timer {
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
 func (t *TarCache) add(filename tarfile.LocalDataFile) {
-	if warning := lintFilename(filename); warning != nil {
+	cleanedFilename := tarfile.LocalDataFile(strings.TrimPrefix(string(filename), t.rootDirectory))
+	if warning := cleanedFilename.Lint(); warning != nil {
 		log.Println("Strange filename encountered:", warning)
 		pusherStrangeFilenames.Inc()
 	}
@@ -121,7 +119,6 @@ func (t *TarCache) add(filename tarfile.LocalDataFile) {
 		log.Printf("Could not open %s (error: %q)\n", filename, err)
 		return
 	}
-	cleanedFilename := tarfile.LocalDataFile(strings.TrimPrefix(string(filename), t.rootDirectory))
 	subdir := cleanedFilename.Subdir()
 	if _, ok := t.currentTarfile[subdir]; !ok {
 		t.currentTarfile[subdir] = tarfile.New(subdir)
@@ -142,30 +139,4 @@ func (t *TarCache) uploadAndDelete(subdir string) {
 	} else {
 		log.Printf("Upload called for nonexistent tarfile for directory %q\n", subdir)
 	}
-}
-
-// lintFilename returns nil if the file has a normal name, and an explanatory
-// error about why the name is strange otherwise.
-func lintFilename(ldf tarfile.LocalDataFile) error {
-	name := string(ldf)
-	cleaned := path.Clean(name)
-	if cleaned != name {
-		return fmt.Errorf("The cleaned up path %q did not match the name of the passed-in file %q", cleaned, name)
-	}
-	d, f := path.Split(name)
-	if strings.HasPrefix(f, ".") {
-		return fmt.Errorf("Hidden file detected: %q", name)
-	}
-	if strings.Contains(name, "..") {
-		return fmt.Errorf("Too many dots in %v", name)
-	}
-	invalidChars := regexp.MustCompile(`[^a-zA-Z0-9/:._-]`)
-	if invalidChars.MatchString(name) {
-		return fmt.Errorf("Strange characters detected in the filename %q", name)
-	}
-	recommendedFormat := regexp.MustCompile(`^[a-zA-Z0-9_-]+/20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
-	if !recommendedFormat.MatchString(d) {
-		return fmt.Errorf("Directory structure does not mirror our best practices for file %v", name)
-	}
-	return nil
 }
