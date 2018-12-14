@@ -9,7 +9,7 @@ import (
 
 // Namer creates tarfile names from timestamps.  The name does not include the bucket.
 type Namer interface {
-	ObjectName(time.Time) string
+	ObjectName(string, time.Time) string
 }
 
 // This is a specific namer used for M-Lab experiments.
@@ -37,7 +37,7 @@ func New(experiment string, nodeName string) (Namer, error) {
 
 // ObjectName returns a string (with a leading '/') representing the correct
 // filename for an uploaded tarfile in a bucket.
-func (n namer) ObjectName(t time.Time) string {
-	timestring := t.Format("2006/01/02/20060102T150405.000000Z")
-	return (n.experiment + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
+func (n namer) ObjectName(subdir string, t time.Time) string {
+	timestring := t.Format("20060102T150405.000000Z")
+	return (n.experiment + "/" + subdir + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
 }

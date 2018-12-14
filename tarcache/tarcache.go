@@ -5,11 +5,9 @@ package tarcache
 
 import (
 	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -19,7 +17,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/m-lab/pusher/backoff"
 	"github.com/m-lab/pusher/uploader"
 
 	"github.com/m-lab/go/bytecount"
@@ -129,6 +126,20 @@ func init() {
 // A LocalDataFile is the absolute pathname of a data file.
 type LocalDataFile string
 
+// Subdir returns the subdirectory of the LocalDataFile, up to 3 levels deep.
+func (l LocalDataFile) Subdir() string {
+	dirs := strings.Split(string(l), "/")
+	if len(dirs) <= 1 {
+		log.Printf("File handed to the tarcache is not in a subdirectory: %v is not split by /", l)
+		return ""
+	}
+	k := len(dirs) - 1
+	if k > 3 {
+		k = 3
+	}
+	return strings.Join(dirs[:k], "/")
+}
+
 // TarCache contains everything you need to incrementally create a tarfile.
 // Once enough time has passed since the first file was added OR the resulting
 // tar file has become big enough, it will call the uploadAndDelete() method.
@@ -136,21 +147,12 @@ type LocalDataFile string
 // The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
 	fileChannel    <-chan LocalDataFile
-	currentTarfile *tarfile
+	timeoutChannel chan string
+	currentTarfile map[string]*tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   time.Duration
 	rootDirectory  string
 	uploader       uploader.Uploader
-}
-
-// A tarfile represents a single tar file containing data for upload
-type tarfile struct {
-	timeout    <-chan time.Time
-	members    []LocalDataFile
-	memberSet  map[LocalDataFile]struct{}
-	contents   *bytes.Buffer
-	tarWriter  *tar.Writer
-	gzipWriter *gzip.Writer
 }
 
 // New creates a new TarCache object and returns a pointer to it and the
@@ -164,30 +166,14 @@ func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold t
 	fileChannel := make(chan LocalDataFile, 1000000)
 	tarCache := &TarCache{
 		fileChannel:    fileChannel,
+		timeoutChannel: make(chan string),
 		rootDirectory:  rootDirectory,
-		currentTarfile: newTarfile(),
+		currentTarfile: make(map[string]*tarfile),
 		sizeThreshold:  sizeThreshold,
 		ageThreshold:   ageThreshold,
 		uploader:       uploader,
 	}
 	return tarCache, fileChannel
-}
-
-func newTarfile() *tarfile {
-	pusherTarfilesCreated.Inc()
-	// TODO: profile and determine if preallocation is a good idea.
-	buffer := &bytes.Buffer{}
-	gzipWriter := gzip.NewWriter(buffer)
-	tarWriter := tar.NewWriter(gzipWriter)
-	// If you create more than one tarfile, then these gauges will get confused and confusing.
-	pusherCurrentTarfileFileCount.Set(0)
-	pusherCurrentTarfileSize.Set(0)
-	return &tarfile{
-		contents:   buffer,
-		tarWriter:  tarWriter,
-		gzipWriter: gzipWriter,
-		memberSet:  make(map[LocalDataFile]struct{}),
-	}
 }
 
 // ListenForever waits for new files and then uploads them. Using this approach
@@ -197,8 +183,8 @@ func newTarfile() *tarfile {
 func (t *TarCache) ListenForever(ctx context.Context) {
 	for {
 		select {
-		case <-t.currentTarfile.timeout:
-			t.uploadAndDelete()
+		case subdir := <-t.timeoutChannel:
+			t.uploadAndDelete(subdir)
 			pusherTarfilesUploadCalls.WithLabelValues("age_threshold_met").Inc()
 		case dataFile, channelOpen := <-t.fileChannel:
 			if channelOpen {
@@ -219,39 +205,55 @@ func (t *TarCache) add(filename LocalDataFile) {
 		log.Println("Strange filename encountered:", warning)
 		pusherStrangeFilenames.Inc()
 	}
-	tf := t.currentTarfile
+	subdir := filename.Subdir()
+	if _, ok := t.currentTarfile[subdir]; !ok {
+		t.currentTarfile[subdir] = newTarfile(subdir)
+	}
+	tf := t.currentTarfile[subdir]
 	if _, present := tf.memberSet[filename]; present {
 		pusherTarfileDuplicateFiles.Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", filename)
 		return
 	}
-	contents, err := ioutil.ReadFile(string(filename))
+	file, err := os.Open(string(filename))
 	if err != nil {
 		pusherFileReadErrors.Inc()
 		log.Printf("Could not read %s (error: %q)\n", filename, err)
 		return
 	}
-	pusherBytesPerFile.Observe(float64(len(contents)))
+	fstat, err := file.Stat()
+	if err != nil {
+		pusherFileReadErrors.Inc()
+		log.Printf("Could not stat %s (error: %q)\n", filename, err)
+		return
+	}
+	size := fstat.Size()
+	pusherBytesPerFile.Observe(float64(size))
 	header := &tar.Header{
 		Name: strings.TrimPrefix(string(filename), t.rootDirectory),
 		Mode: 0666,
-		Size: int64(len(contents)),
+		Size: size,
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
 	rtx.Must(tf.tarWriter.WriteHeader(header), "Could not write the tarfile header for %v", filename)
-	_, err = tf.tarWriter.Write(contents)
+	written, err := io.Copy(tf.tarWriter, file)
 	rtx.Must(err, "Could not write the tarfile contents for %v", filename)
+	if written != size {
+		log.Fatalf("Wrote %d bytes for file %q instead of its length of %d bytes.", written, filename, size)
+	}
 
 	// Flush the data so that our in-memory filesize is accurate.
 	rtx.Must(tf.tarWriter.Flush(), "Could not flush the tarWriter")
 	rtx.Must(tf.gzipWriter.Flush(), "Could not flush the gzipWriter")
 
 	if len(tf.members) == 0 {
-		timer := time.NewTimer(t.ageThreshold)
-		tf.timeout = timer.C
+		log.Println("Starting timer for " + subdir)
+		tf.timeout = time.AfterFunc(t.ageThreshold, func() {
+			t.timeoutChannel <- subdir
+		})
 	}
 	pusherFilesAdded.Inc()
 	tf.members = append(tf.members, filename)
@@ -259,52 +261,18 @@ func (t *TarCache) add(filename LocalDataFile) {
 	pusherCurrentTarfileFileCount.Set(float64(len(tf.members)))
 	pusherCurrentTarfileSize.Set(float64(tf.contents.Len()))
 	if bytecount.ByteCount(tf.contents.Len()) > t.sizeThreshold {
-		t.uploadAndDelete()
+		t.uploadAndDelete(subdir)
 		pusherTarfilesUploadCalls.WithLabelValues("size_threshold_met").Inc()
 	}
 }
 
 // Upload the buffer, delete the component files, start a new buffer.
-func (t *TarCache) uploadAndDelete() {
-	t.currentTarfile.uploadAndDelete(t.uploader)
-	t.currentTarfile = newTarfile()
-}
-
-// Upload the contents of the tarfile and then delete the component files. This
-// function will never return unsuccessfully. If there are files to upload, this
-// method will keep trying until the upload succeeds.
-func (t *tarfile) uploadAndDelete(uploader uploader.Uploader) {
-	if len(t.members) == 0 {
-		pusherEmptyUploads.Inc()
-		pusherSuccessTimestamp.SetToCurrentTime()
-		log.Println("uploadAndDelete called on an empty tarfile.")
-		return
-	}
-	t.tarWriter.Close()
-	t.gzipWriter.Close()
-	pusherFilesPerTarfile.Observe(float64(len(t.members)))
-	pusherBytesPerTarfile.Observe(float64(t.contents.Len()))
-	bytes := t.contents.Bytes()
-	// Try to upload until the upload succeeds.
-	backoff.Retry(
-		func() error { return uploader.Upload(bytes) },
-		time.Duration(100)*time.Millisecond,
-		time.Duration(5)*time.Minute,
-		"upload",
-	)
-	pusherTarfilesUploaded.Inc()
-	pusherSuccessTimestamp.SetToCurrentTime()
-	for _, file := range t.members {
-		// If the file can't be removed, then it either was already removed or the
-		// remove call failed for some unknown reason (permissions, maybe?). If the
-		// file still exists after this attempted remove, then it should eventually
-		// get picked up by the finder.
-		if err := os.Remove(string(file)); err == nil {
-			pusherFilesRemoved.Inc()
-		} else {
-			pusherFileRemoveErrors.Inc()
-			log.Printf("Failed to remove %v (error: %q)\n", file, err)
-		}
+func (t *TarCache) uploadAndDelete(subdir string) {
+	if tf, ok := t.currentTarfile[subdir]; ok {
+		tf.uploadAndDelete(t.uploader)
+		delete(t.currentTarfile, subdir)
+	} else {
+		log.Printf("Upload called for nonexistent tarfile for directory %q\n", subdir)
 	}
 }
 
@@ -320,7 +288,7 @@ func lintFilename(ldf LocalDataFile) error {
 	if strings.HasPrefix(f, ".") {
 		return fmt.Errorf("Hidden file detected: %q", name)
 	}
-	if strings.Contains(name, "...") {
+	if strings.Contains(name, "..") {
 		return fmt.Errorf("Too many dots in %v", name)
 	}
 	invalidChars := regexp.MustCompile(`[^a-zA-Z0-9/:._-]`)

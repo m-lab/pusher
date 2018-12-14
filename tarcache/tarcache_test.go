@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -15,15 +16,20 @@ import (
 	"time"
 
 	"github.com/m-lab/go/bytecount"
+	"github.com/m-lab/go/rtx"
 )
 
 type fakeUploader struct {
 	contents         []byte
 	calls            int
 	requestedRetries int
+	expectedDir      string
 }
 
-func (f *fakeUploader) Upload(contents []byte) error {
+func (f *fakeUploader) Upload(dir string, contents []byte) error {
+	if f.expectedDir != "" && dir != f.expectedDir {
+		log.Fatalf("Upload to unexpected directory: %v != %v\n", dir, f.expectedDir)
+	}
 	f.contents = contents
 	f.calls++
 	if f.requestedRetries > 0 {
@@ -90,30 +96,28 @@ func TestAdd(t *testing.T) {
 	}
 
 	// Make the data files, one small and one big.
-	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	os.MkdirAll(tempdir+"/a/b", 0700)
+	ioutil.WriteFile(tempdir+"/a/b/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	bigcontents := make([]byte, 2000)
 	rand.Read(bigcontents)
-	os.MkdirAll(tempdir+"/a/b", 0700)
 	ioutil.WriteFile(tempdir+"/a/b/bigfile", bigcontents, os.FileMode(0666))
 
 	uploader := fakeUploader{
 		requestedRetries: 1,
+		expectedDir:      tempdir,
 	}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	if tarCache.currentTarfile.contents.Len() != 0 {
-		t.Errorf("The file should be of zero length and is not (%d != 0)", tarCache.currentTarfile.contents.Len())
+	if len(tarCache.currentTarfile) != 0 {
+		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}
 	// Add the tiny file, which should not trigger an upload.
-	tinyFile := LocalDataFile(tempdir + "/tinyfile")
+	tinyFile := LocalDataFile(tempdir + "/a/b/tinyfile")
 	tarCache.add(tinyFile)
 	// Add the tiny file a second time, which should not do anything at all.
 	tarCache.add(tinyFile)
-	if tarCache.currentTarfile.contents.Len() == 0 {
-		t.Errorf("The file should be of nonzero length and is not (%d == 0)", tarCache.currentTarfile.contents.Len())
-	}
-	if len(tarCache.currentTarfile.members) != 1 {
-		t.Errorf("The tarCache should have just one  member and it has %d", len(tarCache.currentTarfile.members))
+	if len(tarCache.currentTarfile) == 0 {
+		t.Errorf("The file should be of nonzero length and is not (%d == 0)", len(tarCache.currentTarfile))
 	}
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
@@ -124,23 +128,26 @@ func TestAdd(t *testing.T) {
 	if uploader.calls == 0 {
 		t.Error("uploader.calls should be >0 ")
 	}
-	if contents, err := ioutil.ReadFile(tempdir + "/tinyfile"); err == nil {
+	if contents, err := ioutil.ReadFile(tempdir + "/a/b/tinyfile"); err == nil {
 		t.Errorf("tinyfile was not deleted, but should have been - contents are %q", string(contents))
 	}
 	// Ensure that the uploaded tarfile can be opened by tar and contains files of the correct size.
 	ioutil.WriteFile(tempdir+"/tarfile.tgz", uploader.contents, os.FileMode(0666))
 	verifyTarfileContents(t, tempdir+"/tarfile.tgz",
 		[]FileInTarfile{
-			{name: "tinyfile", size: 8},
+			{name: "a/b/tinyfile", size: 8},
 			{name: "a/b/bigfile", size: 2000}})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	tiny2File := LocalDataFile(tempdir + "/tiny2")
-	if len(tarCache.currentTarfile.members) != 0 || tarCache.currentTarfile.contents.Len() != 0 {
-		t.Error("Failed to clear the cache after upload")
+	if len(tarCache.currentTarfile) != 0 {
+		t.Errorf("Failed to clear the cache after upload (%v)", len(tarCache.currentTarfile))
+		for k := range tarCache.currentTarfile {
+			t.Errorf("%q should not be in the cache", k)
+		}
 	}
 	tarCache.add(tiny2File)
-	if len(tarCache.currentTarfile.members) != 1 || tarCache.currentTarfile.contents.Len() == 0 {
+	if len(tarCache.currentTarfile) != 1 {
 		t.Error("Failed to add the new file after upload")
 	}
 }
@@ -152,29 +159,36 @@ func TestTimer(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	oldDir, err := os.Getwd()
+	rtx.Must(err, "Could not get working directory")
+	rtx.Must(os.Chdir(tempdir), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
 
 	// Make a small data file.
-	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	bigcontents := make([]byte, 2000)
 	rand.Read(bigcontents)
-	os.MkdirAll(tempdir+"/a/b", 0700)
-	ioutil.WriteFile(tempdir+"/a/b/bigfile", bigcontents, os.FileMode(0666))
+	os.MkdirAll("a/b", 0700)
+	os.MkdirAll("c/d", 0700)
+	ioutil.WriteFile("a/b/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	ioutil.WriteFile("c/d/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 
-	uploader := fakeUploader{}
-	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	uploader := &fakeUploader{}
+	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
 	// Add the small file, which should not trigger an upload.
-	tinyFile := LocalDataFile(tempdir + "/tinyfile")
+	tinyFile := LocalDataFile("a/b/tinyfile")
+	otherTinyFile := LocalDataFile("c/d/tinyfile")
 	ctx := context.Background()
 	go tarCache.ListenForever(ctx)
 	channel <- tinyFile
+	channel <- otherTinyFile
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Sleep to cause a timeout.
-	time.Sleep(time.Duration(250 * time.Millisecond))
-	// Verify that the timer fired.
-	if uploader.calls == 0 {
-		t.Error("uploader.calls should be nonzero ", uploader.calls)
+	time.Sleep(250 * time.Millisecond)
+	// Verify that the timer fired twice - once for each subdirectory.
+	if uploader.calls != 2 {
+		t.Error("uploader.calls should be 2 ", uploader.calls)
 	}
 
 	// Do it again to verify that the timer setup doesn't break after a single use.
@@ -185,8 +199,8 @@ func TestTimer(t *testing.T) {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Create a tiny file and add it.
-	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
-	tiny2File := LocalDataFile(tempdir + "/tiny2")
+	ioutil.WriteFile("tiny2", []byte("12345678"), os.FileMode(0666))
+	tiny2File := LocalDataFile("tiny2")
 	channel <- tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
@@ -229,10 +243,12 @@ func TestEmptyUpload(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	uploader := fakeUploader{}
+	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	tarCache.uploadAndDelete()
+	tarCache.currentTarfile[tempdir] = newTarfile(tempdir)
+	tarCache.uploadAndDelete("this does not exist")
+	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
@@ -246,7 +262,7 @@ func TestEmptyUpload(t *testing.T) {
 	}
 
 	// This should not crash, even though we removed the tinyfile out from underneath the uploader.
-	tarCache.uploadAndDelete()
+	tarCache.uploadAndDelete(tempdir)
 }
 
 func TestUnreadableFile(t *testing.T) {
@@ -261,7 +277,7 @@ func TestUnreadableFile(t *testing.T) {
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	// This should not crash, even though the file does not exist.
 	tarCache.add(LocalDataFile(tempdir + "/dne"))
-	if len(tarCache.currentTarfile.members) != 0 {
+	if tf, ok := tarCache.currentTarfile[tempdir]; ok && len(tf.members) != 0 {
 		t.Error("We added a nonexistent file to the tarCache.")
 	}
 }
@@ -284,6 +300,22 @@ func TestLintFilename(t *testing.T) {
 	} {
 		if warning := lintFilename(LocalDataFile(goodString)); warning != nil {
 			t.Errorf("Linter gave warning %v on %q", warning, goodString)
+		}
+	}
+}
+
+func TestSubdir(t *testing.T) {
+	for _, test := range []struct{ in, out string }{
+		{in: "2009/01/01/tes/", out: "2009/01/01"},
+		{in: "2009/01/test", out: "2009/01"},
+		{in: "2009/test", out: "2009"},
+		{in: "test", out: ""},
+		{in: "2009/01/01/subdir/test", out: "2009/01/01"},
+		{in: "/tmp/test", out: "/tmp"},
+	} {
+		out := LocalDataFile(test.in).Subdir()
+		if out != test.out {
+			t.Errorf("The subdirectory should have been %q but was %q", test.out, out)
 		}
 	}
 }

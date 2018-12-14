@@ -74,7 +74,7 @@ type fakeNamer struct {
 	name string
 }
 
-func (f fakeNamer) ObjectName(t time.Time) string {
+func (f fakeNamer) ObjectName(_ string, t time.Time) string {
 	log.Println("Returned object name:", f.name)
 	return f.name
 }
