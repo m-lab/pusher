@@ -17,6 +17,7 @@ import (
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/pusher/tarfile"
 )
 
 type fakeUploader struct {
@@ -94,17 +95,21 @@ func TestAdd(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	oldDir, err := os.Getwd()
+	rtx.Must(err, "Could not get working directory")
+	rtx.Must(os.Chdir(tempdir), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
 
 	// Make the data files, one small and one big.
-	os.MkdirAll(tempdir+"/a/b", 0700)
-	ioutil.WriteFile(tempdir+"/a/b/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	os.MkdirAll("a/b", 0700)
+	ioutil.WriteFile("a/b/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	bigcontents := make([]byte, 2000)
 	rand.Read(bigcontents)
-	ioutil.WriteFile(tempdir+"/a/b/bigfile", bigcontents, os.FileMode(0666))
+	ioutil.WriteFile("a/b/bigfile", bigcontents, os.FileMode(0666))
 
 	uploader := fakeUploader{
 		requestedRetries: 1,
-		expectedDir:      tempdir,
+		expectedDir:      "a/b",
 	}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
@@ -112,7 +117,7 @@ func TestAdd(t *testing.T) {
 		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}
 	// Add the tiny file, which should not trigger an upload.
-	tinyFile := LocalDataFile(tempdir + "/a/b/tinyfile")
+	tinyFile := tarfile.LocalDataFile(tempdir + "/a/b/tinyfile")
 	tarCache.add(tinyFile)
 	// Add the tiny file a second time, which should not do anything at all.
 	tarCache.add(tinyFile)
@@ -123,7 +128,7 @@ func TestAdd(t *testing.T) {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Add the big file, which should trigger an upload and file deletion.
-	bigFile := LocalDataFile(tempdir + "/a/b/bigfile")
+	bigFile := tarfile.LocalDataFile(tempdir + "/a/b/bigfile")
 	tarCache.add(bigFile)
 	if uploader.calls == 0 {
 		t.Error("uploader.calls should be >0 ")
@@ -132,14 +137,14 @@ func TestAdd(t *testing.T) {
 		t.Errorf("tinyfile was not deleted, but should have been - contents are %q", string(contents))
 	}
 	// Ensure that the uploaded tarfile can be opened by tar and contains files of the correct size.
-	ioutil.WriteFile(tempdir+"/tarfile.tgz", uploader.contents, os.FileMode(0666))
-	verifyTarfileContents(t, tempdir+"/tarfile.tgz",
+	ioutil.WriteFile("tarfile.tgz", uploader.contents, os.FileMode(0666))
+	verifyTarfileContents(t, "tarfile.tgz",
 		[]FileInTarfile{
 			{name: "a/b/tinyfile", size: 8},
 			{name: "a/b/bigfile", size: 2000}})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
-	tiny2File := LocalDataFile(tempdir + "/tiny2")
+	tiny2File := tarfile.LocalDataFile(tempdir + "/tiny2")
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("Failed to clear the cache after upload (%v)", len(tarCache.currentTarfile))
 		for k := range tarCache.currentTarfile {
@@ -175,8 +180,8 @@ func TestTimer(t *testing.T) {
 	uploader := &fakeUploader{}
 	tarCache, channel := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
 	// Add the small file, which should not trigger an upload.
-	tinyFile := LocalDataFile("a/b/tinyfile")
-	otherTinyFile := LocalDataFile("c/d/tinyfile")
+	tinyFile := tarfile.LocalDataFile("a/b/tinyfile")
+	otherTinyFile := tarfile.LocalDataFile("c/d/tinyfile")
 	ctx := context.Background()
 	go tarCache.ListenForever(ctx)
 	channel <- tinyFile
@@ -200,7 +205,7 @@ func TestTimer(t *testing.T) {
 	}
 	// Create a tiny file and add it.
 	ioutil.WriteFile("tiny2", []byte("12345678"), os.FileMode(0666))
-	tiny2File := LocalDataFile("tiny2")
+	tiny2File := tarfile.LocalDataFile("tiny2")
 	channel <- tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
@@ -246,7 +251,7 @@ func TestEmptyUpload(t *testing.T) {
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	tarCache.currentTarfile[tempdir] = newTarfile(tempdir)
+	tarCache.currentTarfile[tempdir] = tarfile.New(tempdir)
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
@@ -255,7 +260,7 @@ func TestEmptyUpload(t *testing.T) {
 
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
-	tarCache.add(LocalDataFile(tempdir + "/tinyfile"))
+	tarCache.add(tarfile.LocalDataFile(tempdir + "/tinyfile"))
 
 	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
 		t.Errorf("Could not remove the tinyfile: %v", err)
@@ -276,46 +281,8 @@ func TestUnreadableFile(t *testing.T) {
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	// This should not crash, even though the file does not exist.
-	tarCache.add(LocalDataFile(tempdir + "/dne"))
-	if tf, ok := tarCache.currentTarfile[tempdir]; ok && len(tf.members) != 0 {
+	tarCache.add(tarfile.LocalDataFile(tempdir + "/dne"))
+	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
 		t.Error("We added a nonexistent file to the tarCache.")
-	}
-}
-
-func TestLintFilename(t *testing.T) {
-	for _, badString := range []string{
-		"/gfdgf/../fsdfds/data.txt",
-		"file.txt; rm -Rf *",
-		"dir/.gz",
-		"dir/.../file.gz",
-		"dir/only_a_dir/",
-	} {
-		if lintFilename(LocalDataFile(badString)) == nil {
-			t.Errorf("Should have had a lint error on %q", badString)
-		}
-	}
-	for _, goodString := range []string{
-		"ndt/2009/03/13/file.gz",
-		"experiment_2/2013/01/01/subdirectory/file.tgz",
-	} {
-		if warning := lintFilename(LocalDataFile(goodString)); warning != nil {
-			t.Errorf("Linter gave warning %v on %q", warning, goodString)
-		}
-	}
-}
-
-func TestSubdir(t *testing.T) {
-	for _, test := range []struct{ in, out string }{
-		{in: "2009/01/01/tes/", out: "2009/01/01"},
-		{in: "2009/01/test", out: "2009/01"},
-		{in: "2009/test", out: "2009"},
-		{in: "test", out: ""},
-		{in: "2009/01/01/subdir/test", out: "2009/01/01"},
-		{in: "/tmp/test", out: "/tmp"},
-	} {
-		out := LocalDataFile(test.in).Subdir()
-		if out != test.out {
-			t.Errorf("The subdirectory should have been %q but was %q", test.out, out)
-		}
 	}
 }

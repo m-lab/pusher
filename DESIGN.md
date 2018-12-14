@@ -82,6 +82,8 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * Don’t remove files created in the target directory. Pusher will do that after successful upload.
 
+* Don't make files are are 100+ MB in size. Besides being hard to work with in general, they might make the pusher OOM as it reads from disk into RAM.
+
 ## 5. Detailed Design
 
 The service requires us to listen for the creation of files, occasionally search for any files whose messages were missed, tar and compress all discovered files, and to upload the resulting tarfile to Google Cloud Storage. Our design takes advantage of Go's channels to have a structure which mirrors the requirements.
