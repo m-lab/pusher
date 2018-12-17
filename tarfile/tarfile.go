@@ -100,13 +100,13 @@ func init() {
 	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
-// A LocalDataFile is the pathname of a data file.
-type LocalDataFile string
+// InternalFilename is the pathname of a data file inside of the tarfile.
+type InternalFilename string
 
 // Subdir returns the subdirectory of the LocalDataFile, up to 3 levels deep. It
 // is only guaranteed to work right on relative path names, suitable for
 // inclusion in tarfiles.
-func (l LocalDataFile) Subdir() string {
+func (l InternalFilename) Subdir() string {
 	dirs := strings.Split(string(l), "/")
 	if len(dirs) <= 1 {
 		log.Printf("File handed to the tarcache is not in a subdirectory: %v is not split by /", l)
@@ -121,7 +121,7 @@ func (l LocalDataFile) Subdir() string {
 
 // Lint returns nil if the file has a normal name, and an explanatory error
 // about why the name is strange otherwise.
-func (l LocalDataFile) Lint() error {
+func (l InternalFilename) Lint() error {
 	name := string(l)
 	cleaned := path.Clean(name)
 	if cleaned != name {
@@ -148,8 +148,8 @@ func (l LocalDataFile) Lint() error {
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    *time.Timer
-	members    []LocalDataFile
-	memberSet  map[LocalDataFile]struct{}
+	members    []osFile
+	memberSet  map[InternalFilename]struct{}
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -158,7 +158,7 @@ type tarfile struct {
 
 // Tarfile represents all the capabilities of a tarfile.  You can add files to it, upload it, and check its size.
 type Tarfile interface {
-	Add(LocalDataFile, osFile, func(string) *time.Timer)
+	Add(InternalFilename, osFile, func(string) *time.Timer)
 	UploadAndDelete(uploader uploader.Uploader)
 	Size() bytecount.ByteCount
 }
@@ -174,7 +174,7 @@ func New(dir string) Tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[LocalDataFile]struct{}),
+		memberSet:  make(map[InternalFilename]struct{}),
 		subdir:     dir,
 	}
 }
@@ -184,11 +184,12 @@ func New(dir string) Tarfile {
 type osFile interface {
 	io.ReadCloser
 	Stat() (os.FileInfo, error)
+	Name() string
 }
 
 // Add adds a single file to the tarfile, and starts a timer if the file is the
 // first file added.
-func (t *tarfile) Add(cleanedFilename LocalDataFile, file osFile, timerFactory func(string) *time.Timer) {
+func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactory func(string) *time.Timer) {
 	if _, present := t.memberSet[cleanedFilename]; present {
 		pusherTarfileDuplicateFiles.Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
@@ -244,7 +245,7 @@ func (t *tarfile) Add(cleanedFilename LocalDataFile, file osFile, timerFactory f
 		t.timeout = timerFactory(t.subdir)
 	}
 	pusherFilesAdded.Inc()
-	t.members = append(t.members, cleanedFilename)
+	t.members = append(t.members, file)
 	t.memberSet[cleanedFilename] = struct{}{}
 }
 
@@ -282,7 +283,7 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 		// remove call failed for some unknown reason (permissions, maybe?). If the
 		// file still exists after this attempted remove, then it should eventually
 		// get picked up by the finder.
-		if err := os.Remove(string(file)); err == nil {
+		if err := os.Remove(file.Name()); err == nil {
 			pusherFilesRemoved.Inc()
 		} else {
 			pusherFileRemoveErrors.Inc()

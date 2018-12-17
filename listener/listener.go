@@ -8,10 +8,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/m-lab/pusher/tarcache"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
-	"github.com/m-lab/pusher/tarfile"
 	"github.com/rjeczalik/notify"
 )
 
@@ -44,13 +45,13 @@ func init() {
 // file listener.
 type Listener struct {
 	events      chan notify.EventInfo
-	fileChannel chan<- tarfile.LocalDataFile
+	fileChannel chan<- tarcache.SystemFilename
 }
 
 // Create and set up an inotify watcher on the directory and its
 // subdirectories.  File events will be converted into `tarcache.LocalDataFile`
 // structs and pointers to those structs will sent to the passed-in channel.
-func Create(directory string, fileChannel chan<- tarfile.LocalDataFile) (*Listener, error) {
+func Create(directory string, fileChannel chan<- tarcache.SystemFilename) (*Listener, error) {
 	listener := &Listener{
 		events:      make(chan notify.EventInfo, 1000000),
 		fileChannel: fileChannel,
@@ -83,7 +84,7 @@ func (l *Listener) ListenForever(ctx context.Context) {
 				log.Printf("Could not open file for event: %v\n", ei)
 				continue
 			}
-			l.fileChannel <- tarfile.LocalDataFile(ei.Path())
+			l.fileChannel <- tarcache.SystemFilename(ei.Path())
 		}
 	}
 

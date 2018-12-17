@@ -21,7 +21,7 @@ func TestLint(t *testing.T) {
 		"dir/only_a_dir/",
 		"ndt/2009/03/ab/file.gz",
 	} {
-		if tarfile.LocalDataFile(badString).Lint() == nil {
+		if tarfile.InternalFilename(badString).Lint() == nil {
 			t.Errorf("Should have had a lint error on %q", badString)
 		}
 	}
@@ -29,7 +29,7 @@ func TestLint(t *testing.T) {
 		"ndt/2009/03/13/file.gz",
 		"experiment_2/2013/01/01/subdirectory/file.tgz",
 	} {
-		if warning := tarfile.LocalDataFile(goodString).Lint(); warning != nil {
+		if warning := tarfile.InternalFilename(goodString).Lint(); warning != nil {
 			t.Errorf("Linter gave warning %v on %q", warning, goodString)
 		}
 	}
@@ -42,7 +42,7 @@ func TestSubdir(t *testing.T) {
 		{in: "test", out: ""},
 		{in: "2009/01/01/subdir/test", out: "2009/01/01"},
 	} {
-		out := tarfile.LocalDataFile(test.in).Subdir()
+		out := tarfile.InternalFilename(test.in).Subdir()
 		if out != test.out {
 			t.Errorf("The subdirectory should have been %q but was %q", test.out, out)
 		}
