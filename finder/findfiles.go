@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/m-lab/pusher/tarfile"
+	"github.com/m-lab/pusher/tarcache"
 )
 
 // Set up the prometheus metrics.
@@ -51,10 +51,10 @@ func init() {
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(directory string, minFileAge time.Duration) []tarfile.LocalDataFile {
+func findFiles(directory string, minFileAge time.Duration) []tarcache.SystemFilename {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
-	eligibleFiles := make(map[tarfile.LocalDataFile]os.FileInfo)
+	eligibleFiles := make(map[tarcache.SystemFilename]os.FileInfo)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
@@ -67,7 +67,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarfile.LocalDataFi
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			eligibleFiles[tarfile.LocalDataFile(path)] = info
+			eligibleFiles[tarcache.SystemFilename(path)] = info
 			totalEligibleSize += info.Size()
 		}
 		return nil
@@ -82,7 +82,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarfile.LocalDataFi
 	pusherFinderBytes.Add(float64(totalEligibleSize))
 
 	// Sort the files by mtime
-	fileList := make([]tarfile.LocalDataFile, 0, len(eligibleFiles))
+	fileList := make([]tarcache.SystemFilename, 0, len(eligibleFiles))
 	for f := range eligibleFiles {
 		fileList = append(fileList, f)
 	}
@@ -103,7 +103,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarfile.LocalDataFi
 // IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
 // exponential distribution and that the time-distribution of `find` operations
 // is therefore memoryless.
-func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- tarfile.LocalDataFile, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- tarcache.SystemFilename, expectedSleepTime time.Duration) {
 	for {
 		sleepTime := time.Duration(rand.ExpFloat64()*float64(expectedSleepTime.Nanoseconds())) * time.Nanosecond
 		select {

@@ -40,13 +40,21 @@ func init() {
 	prometheus.MustRegister(pusherStrangeFilenames)
 }
 
+// SystemFilename contains a filename suitable for passing directly to os.Remove.
+type SystemFilename string
+
+// InternalFilename removes the path information that is not relevant to the tarfile.
+func (s SystemFilename) InternalFilename(rootDirectory string) tarfile.InternalFilename {
+	return tarfile.InternalFilename(strings.TrimPrefix(string(s), rootDirectory))
+}
+
 // TarCache contains everything you need to incrementally create a tarfile.
 // Once enough time has passed since the first file was added OR the resulting
 // tar file has become big enough, it will call the uploadAndDelete() method.
 // To upload a lot of tarfiles, you should only have to create one TarCache.
 // The TarCache takes care of creating each tarfile and getting it uploaded.
 type TarCache struct {
-	fileChannel    <-chan tarfile.LocalDataFile
+	fileChannel    <-chan SystemFilename
 	timeoutChannel chan string
 	currentTarfile map[string]tarfile.Tarfile
 	sizeThreshold  bytecount.ByteCount
@@ -57,13 +65,13 @@ type TarCache struct {
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- tarfile.LocalDataFile) {
+func New(rootDirectory string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- SystemFilename) {
 	if !strings.HasSuffix(rootDirectory, "/") {
 		rootDirectory += "/"
 	}
 	// By giving the channel a large buffer, we attempt to decouple file
 	// discovery event response times from any file processing times.
-	fileChannel := make(chan tarfile.LocalDataFile, 1000000)
+	fileChannel := make(chan SystemFilename, 1000000)
 	tarCache := &TarCache{
 		fileChannel:    fileChannel,
 		timeoutChannel: make(chan string),
@@ -107,9 +115,9 @@ func (t *TarCache) makeTimer(subdir string) *time.Timer {
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
-func (t *TarCache) add(filename tarfile.LocalDataFile) {
-	cleanedFilename := tarfile.LocalDataFile(strings.TrimPrefix(string(filename), t.rootDirectory))
-	if warning := cleanedFilename.Lint(); warning != nil {
+func (t *TarCache) add(filename SystemFilename) {
+	internalName := filename.InternalFilename(t.rootDirectory)
+	if warning := internalName.Lint(); warning != nil {
 		log.Println("Strange filename encountered:", warning)
 		pusherStrangeFilenames.Inc()
 	}
@@ -119,12 +127,12 @@ func (t *TarCache) add(filename tarfile.LocalDataFile) {
 		log.Printf("Could not open %s (error: %q)\n", filename, err)
 		return
 	}
-	subdir := cleanedFilename.Subdir()
+	subdir := internalName.Subdir()
 	if _, ok := t.currentTarfile[subdir]; !ok {
 		t.currentTarfile[subdir] = tarfile.New(subdir)
 	}
 	tf := t.currentTarfile[subdir]
-	tf.Add(cleanedFilename, file, t.makeTimer)
+	tf.Add(internalName, file, t.makeTimer)
 	if tf.Size() > t.sizeThreshold {
 		pusherTarfilesUploadCalls.WithLabelValues("size_threshold_met").Inc()
 		t.uploadAndDelete(subdir)
