@@ -19,5 +19,5 @@ script:
 # This assumes we never have a file named __coverage.cov checked in. A
 # good assumption, but one we should note.
 - GCLOUD_PROJECT=mlab-testing
-    go test -v -covermode=count -coverprofile=__coverage.cov ./...
+    go test -v -covermode=count -coverprofile=__coverage.cov -coverpkg=./... ./...
 - $HOME/gopath/bin/goveralls -coverprofile=__coverage.cov -service=travis-ci

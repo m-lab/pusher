@@ -6,6 +6,21 @@ import (
 	"github.com/m-lab/pusher/filename"
 )
 
+func TestInternal(t *testing.T) {
+	for _, test := range []struct{ in, out string }{
+		{in: "/var/spool/ndt/2009/01/01/tes/", out: "2009/01/01/tes/"},
+		{in: "/var/spool/ndt/2009/01/test", out: "2009/01/test"},
+		{in: "/var/spool/ndt/2009/test", out: "2009/test"},
+		{in: "/var/spool/ndt/test", out: "test"},
+		{in: "/var/spool/ndt/2009/01/01/subdir/test", out: "2009/01/01/subdir/test"},
+	} {
+		out := filename.System(test.in).Internal(filename.System("/var/spool/ndt/"))
+		if string(out) != test.out {
+			t.Errorf("The subdirectory should have been %q but was %q", test.out, out)
+		}
+	}
+}
+
 func TestLint(t *testing.T) {
 	for _, badString := range []string{
 		"/gfdgf/../fsdfds/data.txt",
@@ -28,6 +43,7 @@ func TestLint(t *testing.T) {
 		}
 	}
 }
+
 func TestSubdir(t *testing.T) {
 	for _, test := range []struct{ in, out string }{
 		{in: "2009/01/01/tes/", out: "2009/01/01"},
