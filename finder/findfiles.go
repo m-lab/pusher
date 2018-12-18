@@ -22,9 +22,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m-lab/pusher/filename"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/m-lab/pusher/tarcache"
 )
 
 // Set up the prometheus metrics.
@@ -51,14 +50,14 @@ func init() {
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(directory string, minFileAge time.Duration) []tarcache.SystemFilename {
+func findFiles(directory filename.System, minFileAge time.Duration) []filename.System {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
-	eligibleFiles := make(map[tarcache.SystemFilename]os.FileInfo)
+	eligibleFiles := make(map[filename.System]os.FileInfo)
 	eligibleTime := time.Now().Add(-minFileAge)
 	totalEligibleSize := int64(0)
 
-	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(string(directory), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// Any error terminates the walk.
 			return err
@@ -67,7 +66,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarcache.SystemFile
 			return nil
 		}
 		if eligibleTime.After(info.ModTime()) {
-			eligibleFiles[tarcache.SystemFilename(path)] = info
+			eligibleFiles[filename.System(path)] = info
 			totalEligibleSize += info.Size()
 		}
 		return nil
@@ -82,7 +81,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarcache.SystemFile
 	pusherFinderBytes.Add(float64(totalEligibleSize))
 
 	// Sort the files by mtime
-	fileList := make([]tarcache.SystemFilename, 0, len(eligibleFiles))
+	fileList := make([]filename.System, 0, len(eligibleFiles))
 	for f := range eligibleFiles {
 		fileList = append(fileList, f)
 	}
@@ -103,7 +102,7 @@ func findFiles(directory string, minFileAge time.Duration) []tarcache.SystemFile
 // IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
 // exponential distribution and that the time-distribution of `find` operations
 // is therefore memoryless.
-func FindForever(ctx context.Context, directory string, maxFileAge time.Duration, notificationChannel chan<- tarcache.SystemFilename, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, expectedSleepTime time.Duration) {
 	for {
 		sleepTime := time.Duration(rand.ExpFloat64()*float64(expectedSleepTime.Nanoseconds())) * time.Nanosecond
 		select {

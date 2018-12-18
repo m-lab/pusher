@@ -10,6 +10,7 @@ import (
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/tarcache"
 )
 
@@ -43,10 +44,10 @@ func TestTimer(t *testing.T) {
 	ioutil.WriteFile("c/d/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 
 	uploader := &fakeUploader{}
-	tarCache, channel := tarcache.New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
+	tarCache, channel := tarcache.New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
 	// Add the small file, which should not trigger an upload.
-	tinyFile := tarcache.SystemFilename("a/b/tinyfile")
-	otherTinyFile := tarcache.SystemFilename("c/d/tinyfile")
+	tinyFile := filename.System("a/b/tinyfile")
+	otherTinyFile := filename.System("c/d/tinyfile")
 	ctx := context.Background()
 	go tarCache.ListenForever(ctx)
 	channel <- tinyFile
@@ -70,7 +71,7 @@ func TestTimer(t *testing.T) {
 	}
 	// Create a tiny file and add it.
 	ioutil.WriteFile("tiny2", []byte("12345678"), os.FileMode(0666))
-	tiny2File := tarcache.SystemFilename("tiny2")
+	tiny2File := filename.System("tiny2")
 	channel <- tiny2File
 	if uploader.calls != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
@@ -84,7 +85,7 @@ func TestTimer(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	uploader := fakeUploader{}
-	tarCache, _ := tarcache.New("/tmp", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	tarCache, _ := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -96,7 +97,7 @@ func TestContextCancellation(t *testing.T) {
 
 func TestChannelCloseCancellation(t *testing.T) {
 	uploader := fakeUploader{}
-	tarCache, inputChannel := tarcache.New("/tmp", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	ctx := context.Background()
 	go func() {
 		time.Sleep(100 * time.Millisecond)

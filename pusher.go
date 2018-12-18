@@ -16,6 +16,7 @@ import (
 	"github.com/m-lab/go/rtx"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/finder"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/namer"
@@ -59,8 +60,9 @@ All unparsed command-line arguments will be treated as independent datatypes
 for uploading to GCS. These datatypes determine the subdirectory of GCS the
 data is uploaded to, and they determine the subdirectory of /var/spool to
 watch. Best practices dictate that these names should also be the first part
-of the hostname of the machine as well as the name of the tables where this
-data arrives in BigQuery.
+of the hostname of the machine, the name of the tables where this data
+arrives in BigQuery, and consist only of the ASCII [0-9a-zA-Z] without
+spaces, dashes, underscores, or any other special characters.
 `)
 	}
 	// We want to get flag values from the environment or from the command-line.
@@ -78,11 +80,12 @@ data arrives in BigQuery.
 
 		uploader := uploader.Create(ctx, stiface.AdaptClient(client), *bucket, namer)
 
+		datadir := filename.System(path.Join(*directory, datatype))
+
 		// Set up the file-bundling tarcache system.
-		tarCache, pusherChannel := tarcache.New(*directory, sizeThreshold, *ageThreshold, uploader)
+		tarCache, pusherChannel := tarcache.New(datadir, datatype, sizeThreshold, *ageThreshold, uploader)
 		go tarCache.ListenForever(ctx)
 
-		datadir := path.Join(*directory, datatype)
 		// Send all file close and file move events to the tarCache.
 		l, err := listener.Create(datadir, pusherChannel)
 		rtx.Must(err, "Could not create listener")

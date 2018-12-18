@@ -17,6 +17,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
@@ -78,7 +79,7 @@ type fakeNamer struct {
 	name string
 }
 
-func (f fakeNamer) ObjectName(_ string, t time.Time) string {
+func (f fakeNamer) ObjectName(_ string, _ time.Time) string {
 	log.Println("Returned object name:", f.name)
 	return f.name
 }
@@ -101,11 +102,11 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(tempdir, 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", 1, 1, up)
 	go tarCache.ListenForever(ctx)
 
 	// Set up the listener on the temp directory.
-	l, err := listener.Create(tempdir, pusherChannel)
+	l, err := listener.Create(filename.System(tempdir), pusherChannel)
 	rtx.Must(err, "Could not create listener")
 	go l.ListenForever(ctx)
 
@@ -215,11 +216,11 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(tempdir, 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", 1, 1, up)
 	go tarCache.ListenForever(ctx)
 
 	// Set up the listener on the temp directory.
-	l, err := listener.Create(tempdir, pusherChannel)
+	l, err := listener.Create(filename.System(tempdir), pusherChannel)
 	rtx.Must(err, "Could not create listener")
 	go l.ListenForever(ctx)
 

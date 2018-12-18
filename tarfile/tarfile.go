@@ -4,19 +4,16 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"log"
 	"os"
-	"path"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/m-lab/go/bytecount"
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/backoff"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/uploader"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -27,76 +24,76 @@ var (
 			Name: "pusher_tarfiles_created_total",
 			Help: "The number of tarfiles the pusher has created",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherTarfilesUploaded = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_successful_uploads_total",
 			Help: "The number of tarfiles the pusher has uploaded",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherFilesPerTarfile = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_files_per_tarfile",
 			Help:    "The number of files in each tarfile the pusher has uploaded",
 			Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000},
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherBytesPerTarfile = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_bytes_per_tarfile",
 			Help:    "The number of bytes in each tarfile the pusher has uploaded",
 			Buckets: []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherBytesPerFile = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_bytes_per_file",
 			Help:    "The number of bytes in each file the pusher has uploaded",
 			Buckets: []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherTarfileDuplicateFiles = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_duplicates_total",
 			Help: "The number of times we attempted to add a file twice to the same tarfile",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherFileReadErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_read_errors_total",
 			Help: "The number of times we could not read or stat a file that we were trying to add to the tarfile",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherFilesAdded = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_files_added_total",
 			Help: "The number of files we have added to a tarfile",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherFilesRemoved = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_files_removed_total",
 			Help: "The number of files we have removed from the disk after upload",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherFileRemoveErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_remove_errors_total",
 			Help: "The number of times the os.Remove call failed",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherEmptyUploads = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_empty_uploads_total",
 			Help: "The number of times we tried to upload a tarfile with nothing in it",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 	pusherSuccessTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "pusher_success_timestamp",
 			Help: "The unix timestamp of the most recent pusher success",
 		},
-		[]string{"dir"})
+		[]string{"datatype"})
 )
 
 func init() {
@@ -114,73 +111,28 @@ func init() {
 	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
-// InternalFilename is the pathname of a data file inside of the tarfile.
-type InternalFilename string
-
-// Subdir returns the subdirectory of the LocalDataFile, up to 3 levels deep. It
-// is only guaranteed to work right on relative path names, suitable for
-// inclusion in tarfiles.
-func (l InternalFilename) Subdir() string {
-	dirs := strings.Split(string(l), "/")
-	if len(dirs) <= 1 {
-		log.Printf("File handed to the tarcache is not in a subdirectory: %v is not split by /", l)
-		return ""
-	}
-	k := len(dirs) - 1
-	if k > 3 {
-		k = 3
-	}
-	return strings.Join(dirs[:k], "/")
-}
-
-// Lint returns nil if the file has a normal name, and an explanatory error
-// about why the name is strange otherwise.
-func (l InternalFilename) Lint() error {
-	name := string(l)
-	cleaned := path.Clean(name)
-	if cleaned != name {
-		return fmt.Errorf("The cleaned up path %q did not match the name of the passed-in file %q", cleaned, name)
-	}
-	d, f := path.Split(name)
-	if strings.HasPrefix(f, ".") {
-		return fmt.Errorf("Hidden file detected: %q", name)
-	}
-	if strings.Contains(name, "..") {
-		return fmt.Errorf("Too many dots in %v", name)
-	}
-	invalidChars := regexp.MustCompile(`[^a-zA-Z0-9/:._-]`)
-	if invalidChars.MatchString(name) {
-		return fmt.Errorf("Strange characters detected in the filename %q", name)
-	}
-	recommendedFormat := regexp.MustCompile(`^[a-zA-Z0-9_-]+/20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
-	if !recommendedFormat.MatchString(d) {
-		return fmt.Errorf("Directory structure does not mirror our best practices for file %v", name)
-	}
-	return nil
-}
-
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    *time.Timer
 	members    []osFile
-	memberSet  map[InternalFilename]struct{}
+	memberSet  map[filename.Internal]struct{}
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
-	subdir     string
-	root       string
+	subdir     filename.System
+	datatype   string
 }
 
 // Tarfile represents all the capabilities of a tarfile.  You can add files to it, upload it, and check its size.
 type Tarfile interface {
-	Add(InternalFilename, osFile, func(string) *time.Timer)
+	Add(filename.Internal, osFile, func(string) *time.Timer)
 	UploadAndDelete(uploader uploader.Uploader)
 	Size() bytecount.ByteCount
 }
 
 // New creates a new tarfile to hold the contents of a particular subdirectory.
-func New(root, subdir string) Tarfile {
-	pusherTarfilesCreated.WithLabelValues(root).Inc()
+func New(subdir filename.System, datatype string) Tarfile {
+	pusherTarfilesCreated.WithLabelValues(datatype).Inc()
 	// TODO: profile and determine if preallocation is a good idea.
 	buffer := &bytes.Buffer{}
 	gzipWriter := gzip.NewWriter(buffer)
@@ -189,9 +141,9 @@ func New(root, subdir string) Tarfile {
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[InternalFilename]struct{}),
+		memberSet:  make(map[filename.Internal]struct{}),
 		subdir:     subdir,
-		root:       root,
+		datatype:   datatype,
 	}
 }
 
@@ -205,20 +157,20 @@ type osFile interface {
 
 // Add adds a single file to the tarfile, and starts a timer if the file is the
 // first file added.
-func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactory func(string) *time.Timer) {
+func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFactory func(string) *time.Timer) {
 	if _, present := t.memberSet[cleanedFilename]; present {
-		pusherTarfileDuplicateFiles.WithLabelValues(t.root).Inc()
+		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype).Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
 		return
 	}
 	fstat, err := file.Stat()
 	if err != nil {
-		pusherFileReadErrors.WithLabelValues(t.root).Inc()
+		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
 		log.Printf("Could not stat %s (error: %q)\n", cleanedFilename, err)
 		return
 	}
 	size := fstat.Size()
-	pusherBytesPerFile.WithLabelValues(t.root).Observe(float64(size))
+	pusherBytesPerFile.WithLabelValues(t.datatype).Observe(float64(size))
 	// We read the file into memory instead of using io.Copy because if the use of
 	// io.Copy goes wrong, then we have to make the error fatal (because the
 	// already-written tarfile headers are now wrong), while the reading of disk
@@ -231,12 +183,12 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 	// `tarWriter.Write(contents)` line with `io.Copy(tarWriter, file)`.
 	contents := make([]byte, size)
 	if n, err := file.Read(contents); int64(n) != size || err != nil {
-		pusherFileReadErrors.WithLabelValues(t.root).Inc()
+		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
 		log.Printf("Could not read %s (error: %q)\n", cleanedFilename, err)
 		return
 	}
 	if n, err := file.Read(make([]byte, 1)); n != 0 || err != io.EOF {
-		pusherFileReadErrors.WithLabelValues(t.root).Inc()
+		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
 		log.Printf("Could not after reading %d bytes, %s was not at EOF (error: %q)\n", size, cleanedFilename, err)
 		return
 	}
@@ -258,9 +210,9 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 	rtx.Must(t.gzipWriter.Flush(), "Could not flush the gzipWriter")
 
 	if len(t.members) == 0 {
-		t.timeout = timerFactory(t.subdir)
+		t.timeout = timerFactory(string(t.subdir))
 	}
-	pusherFilesAdded.WithLabelValues(t.root).Inc()
+	pusherFilesAdded.WithLabelValues(t.datatype).Inc()
 	t.members = append(t.members, file)
 	t.memberSet[cleanedFilename] = struct{}{}
 }
@@ -270,8 +222,8 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 // method will keep trying until the upload succeeds.
 func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	if len(t.members) == 0 {
-		pusherEmptyUploads.WithLabelValues(t.root).Inc()
-		pusherSuccessTimestamp.WithLabelValues(t.root).SetToCurrentTime()
+		pusherEmptyUploads.WithLabelValues(t.datatype).Inc()
+		pusherSuccessTimestamp.WithLabelValues(t.datatype).SetToCurrentTime()
 		log.Println("uploadAndDelete called on an empty tarfile.")
 		return
 	}
@@ -280,29 +232,29 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	}
 	t.tarWriter.Close()
 	t.gzipWriter.Close()
-	pusherFilesPerTarfile.WithLabelValues(t.root).Observe(float64(len(t.members)))
-	pusherBytesPerTarfile.WithLabelValues(t.root).Observe(float64(t.contents.Len()))
+	pusherFilesPerTarfile.WithLabelValues(t.datatype).Observe(float64(len(t.members)))
+	pusherBytesPerTarfile.WithLabelValues(t.datatype).Observe(float64(t.contents.Len()))
 	bytes := t.contents.Bytes()
 	// Try to upload until the upload succeeds.
 	backoff.Retry(
 		func() error {
-			return uploader.Upload(t.subdir, bytes)
+			return uploader.Upload(string(t.subdir), bytes)
 		},
 		time.Duration(100)*time.Millisecond,
 		time.Duration(5)*time.Minute,
 		"upload",
 	)
-	pusherTarfilesUploaded.WithLabelValues(t.root).Inc()
-	pusherSuccessTimestamp.WithLabelValues(t.root).SetToCurrentTime()
+	pusherTarfilesUploaded.WithLabelValues(t.datatype).Inc()
+	pusherSuccessTimestamp.WithLabelValues(t.datatype).SetToCurrentTime()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the
 		// file still exists after this attempted remove, then it should eventually
 		// get picked up by the finder.
 		if err := os.Remove(file.Name()); err == nil {
-			pusherFilesRemoved.WithLabelValues(t.root).Inc()
+			pusherFilesRemoved.WithLabelValues(t.datatype).Inc()
 		} else {
-			pusherFileRemoveErrors.WithLabelValues(t.root).Inc()
+			pusherFileRemoveErrors.WithLabelValues(t.datatype).Inc()
 			log.Printf("Failed to remove %v (error: %q)\n", file, err)
 		}
 	}

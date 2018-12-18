@@ -41,5 +41,5 @@ func New(datatype, experiment, nodeName string) (Namer, error) {
 // filename for an uploaded tarfile in a bucket.
 func (n namer) ObjectName(subdir string, t time.Time) string {
 	timestring := t.Format("20060102T150405.000000Z")
-	return path.Join(n.experiment, n.datatype, subdir, timestring+"-"+n.node+"-"+n.site+"-"+n.experiment+".tgz")
+	return path.Join(n.experiment, n.datatype, subdir, timestring+"-"+n.datatype+"-"+n.node+"-"+n.site+"-"+n.experiment+".tgz")
 }

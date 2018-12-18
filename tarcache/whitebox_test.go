@@ -16,6 +16,7 @@ import (
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/tarfile"
 )
 
@@ -95,8 +96,8 @@ func TestEmptyUpload(t *testing.T) {
 	}
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	tarCache.currentTarfile[tempdir] = tarfile.New(tempdir, "")
+	tarCache, _ := New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "")
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
@@ -105,7 +106,7 @@ func TestEmptyUpload(t *testing.T) {
 
 	ioutil.WriteFile(tempdir+"/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	// Add the small file, which should not trigger an upload.
-	tarCache.add(SystemFilename(tempdir + "/tinyfile"))
+	tarCache.add(filename.System(tempdir + "/tinyfile"))
 
 	if err = os.Remove(tempdir + "/tinyfile"); err != nil {
 		t.Errorf("Could not remove the tinyfile: %v", err)
@@ -124,9 +125,9 @@ func TestUnreadableFile(t *testing.T) {
 	}
 	uploader := fakeUploader{}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache, _ := New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	// This should not crash, even though the file does not exist.
-	tarCache.add(SystemFilename(tempdir + "/dne"))
+	tarCache.add(filename.System(tempdir + "/dne"))
 	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
 		t.Error("We added a nonexistent file to the tarCache.")
 	}
@@ -157,12 +158,12 @@ func TestAdd(t *testing.T) {
 		expectedDir:      "a/b",
 	}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache, _ := New(filename.System(tempdir), "testdata", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}
 	// Add the tiny file, which should not trigger an upload.
-	tinyFile := SystemFilename(tempdir + "/a/b/tinyfile")
+	tinyFile := filename.System(tempdir + "/a/b/tinyfile")
 	tarCache.add(tinyFile)
 	// Add the tiny file a second time, which should not do anything at all.
 	tarCache.add(tinyFile)
@@ -173,7 +174,7 @@ func TestAdd(t *testing.T) {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Add the big file, which should trigger an upload and file deletion.
-	bigFile := SystemFilename(tempdir + "/a/b/bigfile")
+	bigFile := filename.System(tempdir + "/a/b/bigfile")
 	tarCache.add(bigFile)
 	if uploader.calls == 0 {
 		t.Error("uploader.calls should be >0 ")
@@ -189,7 +190,7 @@ func TestAdd(t *testing.T) {
 			{name: "a/b/bigfile", size: 2000}})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
-	tiny2File := SystemFilename(tempdir + "/tiny2")
+	tiny2File := filename.System(tempdir + "/tiny2")
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("Failed to clear the cache after upload (%v)", len(tarCache.currentTarfile))
 		for k := range tarCache.currentTarfile {
