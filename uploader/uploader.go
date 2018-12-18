@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
 )
 
 // Uploader is an interface for uploading data.
 type Uploader interface {
-	Upload(dir string, contents []byte) error
+	Upload(dir filename.System, contents []byte) error
 }
 
 // We split the Uploader into a struct and Interface to allow for mocking of the
@@ -43,7 +44,7 @@ func Create(ctx context.Context, client stiface.Client, bucketName string, namer
 }
 
 // Upload the provided buffer to GCS.
-func (u *uploader) Upload(directory string, contents []byte) error {
+func (u *uploader) Upload(directory filename.System, contents []byte) error {
 	name := u.namer.ObjectName(directory, time.Now().UTC())
 	object := u.bucket.Object(name)
 	writer := object.NewWriter(u.context)

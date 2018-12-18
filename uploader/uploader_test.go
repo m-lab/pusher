@@ -11,6 +11,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/uploader"
 	"golang.org/x/net/context"
 )
@@ -19,7 +20,7 @@ type testNamer struct {
 	newName string
 }
 
-func (tn testNamer) ObjectName(s string, t time.Time) string {
+func (tn testNamer) ObjectName(s filename.System, t time.Time) string {
 	return tn.newName
 }
 
@@ -27,10 +28,10 @@ func TestUploading(t *testing.T) {
 	buff := make([]byte, 16)
 	rand.Seed(time.Now().UnixNano())
 	rand.Read(buff)
-	dir := "TestUploading." + base64.RawURLEncoding.EncodeToString(buff) + "/"
+	dir := filename.System("TestUploading." + base64.RawURLEncoding.EncodeToString(buff) + "/")
 	fileName := dir + "test.txt"
 	namer := &testNamer{
-		newName: fileName,
+		newName: string(fileName),
 	}
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
@@ -42,9 +43,9 @@ func TestUploading(t *testing.T) {
 	if err := up.Upload(dir, []byte(contents)); err != nil {
 		t.Error("Could not Upload():", err)
 	}
-	url := "https://storage.googleapis.com/archive-mlab-testing/" + fileName
+	url := "https://storage.googleapis.com/archive-mlab-testing/" + string(fileName)
 	defer func() {
-		cmd := exec.Command("gsutil", "rm", "-f", "gs://archive-mlab-testing/"+fileName)
+		cmd := exec.Command("gsutil", "rm", "-f", "gs://archive-mlab-testing/"+string(fileName))
 		cmd.Run()
 	}()
 

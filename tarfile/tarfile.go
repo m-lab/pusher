@@ -238,7 +238,7 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	// Try to upload until the upload succeeds.
 	backoff.Retry(
 		func() error {
-			return uploader.Upload(string(t.subdir), bytes)
+			return uploader.Upload(t.subdir, bytes)
 		},
 		time.Duration(100)*time.Millisecond,
 		time.Duration(5)*time.Minute,

@@ -69,8 +69,8 @@ type fakeUploader struct {
 	expectedDir      string
 }
 
-func (f *fakeUploader) Upload(dir string, contents []byte) error {
-	if f.expectedDir != "" && dir != f.expectedDir {
+func (f *fakeUploader) Upload(dir filename.System, contents []byte) error {
+	if f.expectedDir != "" && string(dir) != f.expectedDir {
 		log.Fatalf("Upload to unexpected directory: %v != %v\n", dir, f.expectedDir)
 	}
 	f.contents = contents

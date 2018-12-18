@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/namer"
 )
 
@@ -29,7 +30,7 @@ func TestFilenameGeneration(t *testing.T) {
 		t.Fatal("Failed to create new namer")
 	}
 	for _, test := range tests {
-		if out := namer.ObjectName(test.dir, test.date); out != test.out {
+		if out := namer.ObjectName(filename.System(test.dir), test.date); out != test.out {
 			t.Errorf("%q != %q (input: %v, %v)", out, test.out, test.dir, test.date)
 		}
 	}

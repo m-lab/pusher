@@ -79,7 +79,7 @@ type fakeNamer struct {
 	name string
 }
 
-func (f fakeNamer) ObjectName(_ string, _ time.Time) string {
+func (f fakeNamer) ObjectName(_ filename.System, _ time.Time) string {
 	log.Println("Returned object name:", f.name)
 	return f.name
 }

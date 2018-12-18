@@ -18,7 +18,7 @@ type fakeUploader struct {
 	calls int
 }
 
-func (f *fakeUploader) Upload(dir string, contents []byte) error {
+func (f *fakeUploader) Upload(_ filename.System, _ []byte) error {
 	f.calls++
 	return nil
 }
