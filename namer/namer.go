@@ -3,6 +3,7 @@ package namer
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"time"
 )
@@ -14,11 +15,11 @@ type Namer interface {
 
 // This is a specific namer used for M-Lab experiments.
 type namer struct {
-	experiment, node, site string
+	datatype, experiment, node, site string
 }
 
 // New creates a new Namer for the given experiment, node, and site.
-func New(experiment string, nodeName string) (Namer, error) {
+func New(datatype, experiment, nodeName string) (Namer, error) {
 	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
 	fields := strings.SplitN(nodeName, ".", 3)
 	if len(fields) < 2 {
@@ -29,6 +30,7 @@ func New(experiment string, nodeName string) (Namer, error) {
 			fields[0], fields[1])
 	}
 	return namer{
+		datatype:   datatype,
 		experiment: experiment,
 		node:       fields[0],
 		site:       fields[1],
@@ -39,5 +41,5 @@ func New(experiment string, nodeName string) (Namer, error) {
 // filename for an uploaded tarfile in a bucket.
 func (n namer) ObjectName(subdir string, t time.Time) string {
 	timestring := t.Format("20060102T150405.000000Z")
-	return (n.experiment + "/" + subdir + "/" + timestring + "-" + n.node + "-" + n.site + "-" + n.experiment + ".tgz")
+	return path.Join(n.experiment, n.datatype, subdir, timestring+"-"+n.node+"-"+n.site+"-"+n.experiment+".tgz")
 }

@@ -16,15 +16,15 @@ func TestFilenameGeneration(t *testing.T) {
 		{
 			date: time.Date(2018, 5, 6, 15, 1, 2, 44001000, time.UTC),
 			dir:  "monkey",
-			out:  "exp/monkey/20180506T150102.044001Z-mlab6-lga0t-exp.tgz",
+			out:  "exp/summary/monkey/20180506T150102.044001Z-mlab6-lga0t-exp.tgz",
 		},
 		{
 			date: time.Date(2008, 1, 1, 0, 0, 0, 0, time.UTC),
 			dir:  "2008/01/01",
-			out:  "exp/2008/01/01/20080101T000000.000000Z-mlab6-lga0t-exp.tgz",
+			out:  "exp/summary/2008/01/01/20080101T000000.000000Z-mlab6-lga0t-exp.tgz",
 		},
 	}
-	namer, err := namer.New("exp", "mlab6.lga0t")
+	namer, err := namer.New("summary", "exp", "mlab6.lga0t")
 	if err != nil {
 		t.Fatal("Failed to create new namer")
 	}
@@ -46,7 +46,7 @@ func TestNew(t *testing.T) {
 		{
 			name:        "success",
 			nodeName:    "mlab5.abc0t.measurement-lab.org",
-			wantObjName: "fake-experiment/2011/03/04/20110304T124500.000000Z-mlab5-abc0t-fake-experiment.tgz",
+			wantObjName: "fake-experiment/dat/2011/03/04/20110304T124500.000000Z-mlab5-abc0t-fake-experiment.tgz",
 		},
 		{
 			name:     "failure-machine-too-short",
@@ -66,7 +66,7 @@ func TestNew(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := namer.New("fake-experiment", tt.nodeName)
+			got, err := namer.New("dat", "fake-experiment", tt.nodeName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
 				return

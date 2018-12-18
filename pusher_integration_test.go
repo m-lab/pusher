@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -31,6 +32,7 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	rtx.Must(os.Mkdir(tempdir+"/testdata", 0777), "Could not create dir.")
 	// Set up the environment variables.
 	type TempEnvVar struct {
 		name, value string
@@ -67,7 +69,9 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 		}
 		cancelCtx()
 	}()
+	os.Args = append(os.Args, "testdata") // Monitor the testdata directory inside of tempdir.
 	main()
+	flag.Usage() // As an extra test, make sure our custom usage message doesn't crash everything.
 }
 
 type fakeNamer struct {

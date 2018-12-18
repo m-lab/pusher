@@ -23,21 +23,26 @@ var (
 			Name: "pusher_tarfiles_upload_calls_total",
 			Help: "The number of times upload has been called",
 		},
-		[]string{"reason"},
+		[]string{"dir", "reason"},
 	)
-	pusherStrangeFilenames = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_strange_filenames_total",
-		Help: "The number of files we have seen with names that looked surprising in some way",
-	})
-	pusherFileOpenErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_file_open_errors_total",
-		Help: "The number of times we could not open a file that we were trying to add to the tarfile",
-	})
+	pusherStrangeFilenames = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_strange_filenames_total",
+			Help: "The number of files we have seen with names that looked surprising in some way",
+		},
+		[]string{"dir"})
+	pusherFileOpenErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_file_open_errors_total",
+			Help: "The number of times we could not open a file that we were trying to add to the tarfile",
+		},
+		[]string{"dir"})
 )
 
 func init() {
 	prometheus.MustRegister(pusherTarfilesUploadCalls)
 	prometheus.MustRegister(pusherStrangeFilenames)
+	prometheus.MustRegister(pusherFileOpenErrors)
 }
 
 // SystemFilename contains a filename suitable for passing directly to os.Remove.
@@ -93,7 +98,7 @@ func (t *TarCache) ListenForever(ctx context.Context) {
 		select {
 		case subdir := <-t.timeoutChannel:
 			t.uploadAndDelete(subdir)
-			pusherTarfilesUploadCalls.WithLabelValues("age_threshold_met").Inc()
+			pusherTarfilesUploadCalls.WithLabelValues(t.rootDirectory, "age_threshold_met").Inc()
 		case dataFile, channelOpen := <-t.fileChannel:
 			if channelOpen {
 				t.add(dataFile)
@@ -119,22 +124,22 @@ func (t *TarCache) add(filename SystemFilename) {
 	internalName := filename.InternalFilename(t.rootDirectory)
 	if warning := internalName.Lint(); warning != nil {
 		log.Println("Strange filename encountered:", warning)
-		pusherStrangeFilenames.Inc()
+		pusherStrangeFilenames.WithLabelValues(t.rootDirectory).Inc()
 	}
 	file, err := os.Open(string(filename))
 	if err != nil {
-		pusherFileOpenErrors.Inc()
+		pusherFileOpenErrors.WithLabelValues(t.rootDirectory).Inc()
 		log.Printf("Could not open %s (error: %q)\n", filename, err)
 		return
 	}
 	subdir := internalName.Subdir()
 	if _, ok := t.currentTarfile[subdir]; !ok {
-		t.currentTarfile[subdir] = tarfile.New(subdir)
+		t.currentTarfile[subdir] = tarfile.New(t.rootDirectory, subdir)
 	}
 	tf := t.currentTarfile[subdir]
 	tf.Add(internalName, file, t.makeTimer)
 	if tf.Size() > t.sizeThreshold {
-		pusherTarfilesUploadCalls.WithLabelValues("size_threshold_met").Inc()
+		pusherTarfilesUploadCalls.WithLabelValues(t.rootDirectory, "size_threshold_met").Inc()
 		t.uploadAndDelete(subdir)
 	}
 }

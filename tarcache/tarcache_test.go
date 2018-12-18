@@ -251,7 +251,7 @@ func TestEmptyUpload(t *testing.T) {
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
 	tarCache, _ := New(tempdir, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	tarCache.currentTarfile[tempdir] = tarfile.New(tempdir)
+	tarCache.currentTarfile[tempdir] = tarfile.New(tempdir, "")
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {

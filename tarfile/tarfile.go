@@ -22,65 +22,81 @@ import (
 )
 
 var (
-	pusherTarfilesCreated = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_tarfiles_created_total",
-		Help: "The number of tarfiles the pusher has created",
-	})
-	pusherTarfilesUploaded = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_tarfiles_successful_uploads_total",
-		Help: "The number of tarfiles the pusher has uploaded",
-	})
-	pusherFilesPerTarfile = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "pusher_files_per_tarfile",
-		Help:    "The number of files in each tarfile the pusher has uploaded",
-		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000},
-	})
-	pusherBytesPerTarfile = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "pusher_bytes_per_tarfile",
-		Help:    "The number of bytes in each tarfile the pusher has uploaded",
-		Buckets: []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
-	})
-	pusherBytesPerFile = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "pusher_bytes_per_file",
-		Help:    "The number of bytes in each file the pusher has uploaded",
-		Buckets: []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
-	})
-	pusherTarfileDuplicateFiles = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_tarfiles_duplicates_total",
-		Help: "The number of times we attempted to add a file twice to the same tarfile",
-	})
-	pusherFileReadErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_file_read_errors_total",
-		Help: "The number of times we could not read or stat a file that we were trying to add to the tarfile",
-	})
-	pusherFilesAdded = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_files_added_total",
-		Help: "The number of files we have added to a tarfile",
-	})
-	pusherFilesRemoved = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_files_removed_total",
-		Help: "The number of files we have removed from the disk after upload",
-	})
-	pusherFileRemoveErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_file_remove_errors_total",
-		Help: "The number of times the os.Remove call failed",
-	})
-	pusherEmptyUploads = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_empty_uploads_total",
-		Help: "The number of times we tried to upload a tarfile with nothing in it",
-	})
-	pusherCurrentTarfileFilesCreated = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pusher_current_tarfile_files",
-		Help: "The number of files in the current tarfile",
-	})
-	pusherTotalTarfileSize = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pusher_tarfile_size_bytes_total",
-		Help: "The number of bytes we've ever put in a tarfile",
-	})
-	pusherSuccessTimestamp = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pusher_success_timestamp",
-		Help: "The unix timestamp of the most recent pusher success",
-	})
+	pusherTarfilesCreated = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_tarfiles_created_total",
+			Help: "The number of tarfiles the pusher has created",
+		},
+		[]string{"dir"})
+	pusherTarfilesUploaded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_tarfiles_successful_uploads_total",
+			Help: "The number of tarfiles the pusher has uploaded",
+		},
+		[]string{"dir"})
+	pusherFilesPerTarfile = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "pusher_files_per_tarfile",
+			Help:    "The number of files in each tarfile the pusher has uploaded",
+			Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000},
+		},
+		[]string{"dir"})
+	pusherBytesPerTarfile = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "pusher_bytes_per_tarfile",
+			Help:    "The number of bytes in each tarfile the pusher has uploaded",
+			Buckets: []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+		},
+		[]string{"dir"})
+	pusherBytesPerFile = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "pusher_bytes_per_file",
+			Help:    "The number of bytes in each file the pusher has uploaded",
+			Buckets: []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+		},
+		[]string{"dir"})
+	pusherTarfileDuplicateFiles = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_tarfiles_duplicates_total",
+			Help: "The number of times we attempted to add a file twice to the same tarfile",
+		},
+		[]string{"dir"})
+	pusherFileReadErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_file_read_errors_total",
+			Help: "The number of times we could not read or stat a file that we were trying to add to the tarfile",
+		},
+		[]string{"dir"})
+	pusherFilesAdded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_files_added_total",
+			Help: "The number of files we have added to a tarfile",
+		},
+		[]string{"dir"})
+	pusherFilesRemoved = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_files_removed_total",
+			Help: "The number of files we have removed from the disk after upload",
+		},
+		[]string{"dir"})
+	pusherFileRemoveErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_file_remove_errors_total",
+			Help: "The number of times the os.Remove call failed",
+		},
+		[]string{"dir"})
+	pusherEmptyUploads = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_empty_uploads_total",
+			Help: "The number of times we tried to upload a tarfile with nothing in it",
+		},
+		[]string{"dir"})
+	pusherSuccessTimestamp = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "pusher_success_timestamp",
+			Help: "The unix timestamp of the most recent pusher success",
+		},
+		[]string{"dir"})
 )
 
 func init() {
@@ -95,8 +111,6 @@ func init() {
 	prometheus.MustRegister(pusherFilesRemoved)
 	prometheus.MustRegister(pusherFileRemoveErrors)
 	prometheus.MustRegister(pusherEmptyUploads)
-	prometheus.MustRegister(pusherCurrentTarfileFilesCreated)
-	prometheus.MustRegister(pusherTotalTarfileSize)
 	prometheus.MustRegister(pusherSuccessTimestamp)
 }
 
@@ -154,6 +168,7 @@ type tarfile struct {
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
 	subdir     string
+	root       string
 }
 
 // Tarfile represents all the capabilities of a tarfile.  You can add files to it, upload it, and check its size.
@@ -164,8 +179,8 @@ type Tarfile interface {
 }
 
 // New creates a new tarfile to hold the contents of a particular subdirectory.
-func New(dir string) Tarfile {
-	pusherTarfilesCreated.Inc()
+func New(root, subdir string) Tarfile {
+	pusherTarfilesCreated.WithLabelValues(root).Inc()
 	// TODO: profile and determine if preallocation is a good idea.
 	buffer := &bytes.Buffer{}
 	gzipWriter := gzip.NewWriter(buffer)
@@ -175,7 +190,8 @@ func New(dir string) Tarfile {
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
 		memberSet:  make(map[InternalFilename]struct{}),
-		subdir:     dir,
+		subdir:     subdir,
+		root:       root,
 	}
 }
 
@@ -191,18 +207,18 @@ type osFile interface {
 // first file added.
 func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactory func(string) *time.Timer) {
 	if _, present := t.memberSet[cleanedFilename]; present {
-		pusherTarfileDuplicateFiles.Inc()
+		pusherTarfileDuplicateFiles.WithLabelValues(t.root).Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
 		return
 	}
 	fstat, err := file.Stat()
 	if err != nil {
-		pusherFileReadErrors.Inc()
+		pusherFileReadErrors.WithLabelValues(t.root).Inc()
 		log.Printf("Could not stat %s (error: %q)\n", cleanedFilename, err)
 		return
 	}
 	size := fstat.Size()
-	pusherBytesPerFile.Observe(float64(size))
+	pusherBytesPerFile.WithLabelValues(t.root).Observe(float64(size))
 	// We read the file into memory instead of using io.Copy because if the use of
 	// io.Copy goes wrong, then we have to make the error fatal (because the
 	// already-written tarfile headers are now wrong), while the reading of disk
@@ -215,12 +231,12 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 	// `tarWriter.Write(contents)` line with `io.Copy(tarWriter, file)`.
 	contents := make([]byte, size)
 	if n, err := file.Read(contents); int64(n) != size || err != nil {
-		pusherFileReadErrors.Inc()
+		pusherFileReadErrors.WithLabelValues(t.root).Inc()
 		log.Printf("Could not read %s (error: %q)\n", cleanedFilename, err)
 		return
 	}
 	if n, err := file.Read(make([]byte, 1)); n != 0 || err != io.EOF {
-		pusherFileReadErrors.Inc()
+		pusherFileReadErrors.WithLabelValues(t.root).Inc()
 		log.Printf("Could not after reading %d bytes, %s was not at EOF (error: %q)\n", size, cleanedFilename, err)
 		return
 	}
@@ -244,7 +260,7 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 	if len(t.members) == 0 {
 		t.timeout = timerFactory(t.subdir)
 	}
-	pusherFilesAdded.Inc()
+	pusherFilesAdded.WithLabelValues(t.root).Inc()
 	t.members = append(t.members, file)
 	t.memberSet[cleanedFilename] = struct{}{}
 }
@@ -254,8 +270,8 @@ func (t *tarfile) Add(cleanedFilename InternalFilename, file osFile, timerFactor
 // method will keep trying until the upload succeeds.
 func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	if len(t.members) == 0 {
-		pusherEmptyUploads.Inc()
-		pusherSuccessTimestamp.SetToCurrentTime()
+		pusherEmptyUploads.WithLabelValues(t.root).Inc()
+		pusherSuccessTimestamp.WithLabelValues(t.root).SetToCurrentTime()
 		log.Println("uploadAndDelete called on an empty tarfile.")
 		return
 	}
@@ -264,8 +280,8 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	}
 	t.tarWriter.Close()
 	t.gzipWriter.Close()
-	pusherFilesPerTarfile.Observe(float64(len(t.members)))
-	pusherBytesPerTarfile.Observe(float64(t.contents.Len()))
+	pusherFilesPerTarfile.WithLabelValues(t.root).Observe(float64(len(t.members)))
+	pusherBytesPerTarfile.WithLabelValues(t.root).Observe(float64(t.contents.Len()))
 	bytes := t.contents.Bytes()
 	// Try to upload until the upload succeeds.
 	backoff.Retry(
@@ -276,17 +292,17 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 		time.Duration(5)*time.Minute,
 		"upload",
 	)
-	pusherTarfilesUploaded.Inc()
-	pusherSuccessTimestamp.SetToCurrentTime()
+	pusherTarfilesUploaded.WithLabelValues(t.root).Inc()
+	pusherSuccessTimestamp.WithLabelValues(t.root).SetToCurrentTime()
 	for _, file := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the
 		// file still exists after this attempted remove, then it should eventually
 		// get picked up by the finder.
 		if err := os.Remove(file.Name()); err == nil {
-			pusherFilesRemoved.Inc()
+			pusherFilesRemoved.WithLabelValues(t.root).Inc()
 		} else {
-			pusherFileRemoveErrors.Inc()
+			pusherFileRemoveErrors.WithLabelValues(t.root).Inc()
 			log.Printf("Failed to remove %v (error: %q)\n", file, err)
 		}
 	}

@@ -89,7 +89,7 @@ func TestAdd(t *testing.T) {
 	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
 	defer os.Chdir(oldDir)
 	timerFactoryCalls = 0
-	tf := tarfile.New(tmp)
+	tf := tarfile.New(tmp, "")
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	if tf.Size() != 0 {
 		t.Errorf("Tarfile size is nonzero before anything is added to it")
@@ -113,7 +113,7 @@ func TestAdd(t *testing.T) {
 	}
 }
 func TestUploadAndDeleteOnEmpty(t *testing.T) {
-	tf := tarfile.New("")
+	tf := tarfile.New("", "")
 	tf.UploadAndDelete(nil) // If this doesn't crash, then the test passes.
 }
 
@@ -145,17 +145,19 @@ func TestUploadAndDelete(t *testing.T) {
 	rtx.Must(err, "Could not get working directory")
 	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
 	defer os.Chdir(oldDir)
-
+	// A normal file.
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	f, err := os.Open("tinyfile")
 	rtx.Must(err, "Could not open file we just wrote")
+	// This file disappears before it can be removed by the tarfile, ensuring that
+	// files that disappear don't cause problems..
 	ioutil.WriteFile("disappearing", []byte("abcdefgh"), os.FileMode(0666))
 	f2, err := os.Open("disappearing")
 	rtx.Must(err, "Could not open file we just wrote")
-	tf := tarfile.New("")
+	rtx.Must(os.Remove("disappearing"), "Could not delete file")
+	tf := tarfile.New(tmp, "")
 	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
 	tf.Add("tinyfile", f, timerFactory)
 	tf.Add("disappearing", f2, timerFactory)
-	rtx.Must(os.Remove("disappearing"), "Could not delete file")
 	tf.UploadAndDelete(&fakeUploader{})
 }
