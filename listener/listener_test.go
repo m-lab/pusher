@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m-lab/pusher/tarcache"
-
+	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/listener"
 )
 
@@ -20,8 +19,8 @@ func TestListenForClose(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan tarcache.SystemFilename)
-	l, err := listener.Create(dir, ldfChan)
+	ldfChan := make(chan filename.System)
+	l, err := listener.Create(filename.System(dir), ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
 		return
@@ -45,8 +44,8 @@ func TestListenForMove(t *testing.T) {
 	defer os.RemoveAll(dir)
 	os.Mkdir(dir+"/subdir", 0777)
 	ioutil.WriteFile(dir+"/testfile", []byte("test"), 0777)
-	ldfChan := make(chan tarcache.SystemFilename)
-	l, err := listener.Create(dir+"/subdir", ldfChan)
+	ldfChan := make(chan filename.System)
+	l, err := listener.Create(filename.System(dir+"/subdir"), ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
 		return
@@ -73,8 +72,8 @@ func TestListenInSubdir(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	os.Mkdir(dir+"/subdir", 0777)
-	ldfChan := make(chan tarcache.SystemFilename)
-	l, err := listener.Create(dir+"/subdir", ldfChan)
+	ldfChan := make(chan filename.System)
+	l, err := listener.Create(filename.System(dir+"/subdir"), ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
 		return
@@ -99,8 +98,8 @@ func TestCreateOnBadDir(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan tarcache.SystemFilename)
-	l, err := listener.Create(dir+"/doesnotexist", ldfChan)
+	ldfChan := make(chan filename.System)
+	l, err := listener.Create(filename.System(dir+"/doesnotexist"), ldfChan)
 	if l != nil || err == nil {
 		t.Error("Should have had an error")
 	}

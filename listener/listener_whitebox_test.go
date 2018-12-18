@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m-lab/pusher/tarcache"
-
+	"github.com/m-lab/pusher/filename"
 	"github.com/rjeczalik/notify"
 	"golang.org/x/sys/unix"
 )
@@ -47,8 +46,8 @@ func TestBadEvent(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(dir)
-	ldfChan := make(chan tarcache.SystemFilename)
-	l, err := Create(dir, ldfChan)
+	ldfChan := make(chan filename.System)
+	l, err := Create(filename.System(dir), ldfChan)
 	if err != nil {
 		t.Errorf("%v", err)
 		return
