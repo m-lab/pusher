@@ -1,3 +1,6 @@
+// Package filename provides types for representing files on disk and files
+// inside of tarfiles.  Using these types can help ensure that function
+// arguments don't mix up the two categories.
 package filename
 
 import (
@@ -54,7 +57,7 @@ func (l Internal) Lint() error {
 	if invalidChars.MatchString(name) {
 		return fmt.Errorf("Strange characters detected in the filename %q", name)
 	}
-	recommendedFormat := regexp.MustCompile(`^[a-zA-Z0-9_-]+/20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
+	recommendedFormat := regexp.MustCompile(`^20[0-9][0-9]/[0-9]{2}/[0-9]{2}`)
 	if !recommendedFormat.MatchString(d) {
 		return fmt.Errorf("Directory structure does not mirror our best practices for file %v", name)
 	}

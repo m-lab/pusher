@@ -52,9 +52,9 @@ In exchange for obeying that contract, the experimenter gets an extremely simple
 
 * One data file per test result (e.g. one upload test should create one file)
 
-* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/2008/04/22/20080422Z15:04:05.0001212.results.txt`. If you do this, pusher will make the additional guarantee that files written to the directory YYYY/MM/DD will appear in a tarfile contained in the directory path YYYY/MM/DD on Google Cloud Storage.
+* File names must be written in a date-and-time-specifying subdirectory format like `/var/spool/myexperiment/datatype/2008/04/22/20080422Z15:04:05.0001212.results.txt`. If you do this, pusher will make the additional guarantee that files written to the directory datatype/YYYY/MM/DD will appear in a tarfile contained in the directory path datatype/YYYY/MM/DD on Google Cloud Storage.  We also intend that the name of the datatype correspond to the name of the tables in BigQuery, and that the experiment name will be the leading part of the dns name of the host on which the experiment is run.  Short and good standard names for experiments and datatypes make a lot of things simpler.
 
-* Feel free to put IP addresses in the file name if that makes sense for your experiment, but make sure your code works with both IPv4 and IPv6.
+* Feel free to put IP addresses in the file name if that makes sense for your experiment, but make sure your filename generation code works with both IPv4 and IPv6.
 
 * For filenames, stick with the alphabet, numbers, underscores, colons, periods, and dashes - and even then, be careful with the periods to ensure your filenames never start with a period or have two periods in a row.
 
@@ -114,7 +114,7 @@ The file channel takes in the information about files that should be uploaded an
 
 The namer generates names for the tarfiles based on the mlab node name, the experiment name, the subdirectory the data was written to, and the UTC timestamp of the upload time. The upload time is used (as opposed to the minimum file mtime or anything else like that) because it is the only counter that (local time adjustments aside) can be depended upon to monotonically increase, and as such is guaranteed not to generate collisions in the produced file name. The names it generates should look like:
 
-`ndt/2006/01/02/20161112T150405.000000Z-mlab1-lax03-ndt.tgz`
+`ndt/2006/01/02/20161112T150405.000000Z-summary-mlab1-lax03-ndt.tgz`
 
 The date in the path directories is the date the data is about (according to the experiment), and the timestamp in the filename is the time at which the file was uploaded.
 
