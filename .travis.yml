@@ -1,5 +1,8 @@
 language: go
 
+services:
+- docker
+
 before_install:
 - go get github.com/mattn/goveralls
 - $TRAVIS_BUILD_DIR/travis/install_gcloud.sh
@@ -21,3 +24,5 @@ script:
 - GCLOUD_PROJECT=mlab-testing
     go test -v -covermode=count -coverprofile=__coverage.cov -coverpkg=./... ./...
 - $HOME/gopath/bin/goveralls -coverprofile=__coverage.cov -service=travis-ci
+- docker build -t pushertest .
+- docker run pushertest --dry_run

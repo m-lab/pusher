@@ -2,6 +2,7 @@ FROM golang:1.11 as build
 # Add the local files to be sure we are building the local source code instead
 # of downloading from GitHub.
 # Don't add any of the other libraries, because we live at HEAD.
+ENV CGO_ENABLED 0
 COPY . /go/src/github.com/m-lab/pusher
 RUN go get -v github.com/m-lab/pusher
 
@@ -17,4 +18,4 @@ WORKDIR /
 # To set the command-line args use their corresponding environment variables or
 # add the flags or args to the end of the "docker run measurementlab/pusher"
 # command.
-CMD ["/pusher"]
+ENTRYPOINT ["/pusher"]

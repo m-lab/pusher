@@ -9,6 +9,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/m-lab/go/httpx"
+
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/go/bytecount"
@@ -35,6 +37,7 @@ var (
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
+	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
 
 	// Create a single unified context and a cancellationMethod for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
@@ -69,7 +72,11 @@ spaces, dashes, underscores, or any other special characters.
 	flag.Parse()
 	flagx.ArgsFromEnv(flag.CommandLine)
 
-	defer cancelCtx()
+	if *dryRun {
+		cancelCtx()
+	} else {
+		defer cancelCtx()
+	}
 
 	for _, datatype := range flag.Args() {
 		// Set up the upload system.
@@ -96,10 +103,13 @@ spaces, dashes, underscores, or any other special characters.
 	}
 
 	// Start up the monitoring service.
-	http.Handle("/metrics", promhttp.Handler())
-	go func() {
-		rtx.Must(http.ListenAndServe(*monitorAddr, nil), "Server died with an error")
-	}()
-
+	metricMux := http.NewServeMux()
+	metricMux.Handle("/metrics", promhttp.Handler())
+	metricServer := http.Server{
+		Addr:    *monitorAddr,
+		Handler: metricMux,
+	}
+	httpx.ListenAndServeAsync(&metricServer)
 	<-ctx.Done()
+	metricServer.Shutdown(ctx)
 }
