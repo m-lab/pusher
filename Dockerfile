@@ -17,4 +17,4 @@ WORKDIR /
 # To set the command-line args use their corresponding environment variables or
 # add the flags or args to the end of the "docker run measurementlab/pusher"
 # command.
-ENTRYPOINT ["/pusher"]
+CMD ["/pusher"]
