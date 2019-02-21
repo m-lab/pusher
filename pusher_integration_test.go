@@ -27,6 +27,7 @@ import (
 )
 
 func TestMainAndPrometheusMetrics(t *testing.T) {
+	ctx, cancelCtx = context.WithCancel(context.Background())
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestMain")
 	defer os.RemoveAll(tempdir)
 	if err != nil {
@@ -44,6 +45,7 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 		{"BUCKET", "archive-mlab-testing"},
 		{"EXPERIMENT", "exp"},
 		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org"},
+		{"MONITORING_ADDRESS", "localhost:9000"},
 	}
 	for i := range newVars {
 		revert := osx.MustSetenv(newVars[i].name, newVars[i].value)
@@ -72,7 +74,16 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 	}()
 	os.Args = append(os.Args, "testdata") // Monitor the testdata directory inside of tempdir.
 	main()
-	flag.Usage() // As an extra test, make sure our custom usage message doesn't crash everything.
+
+	// Make sure our custom usage message doesn't crash everything.
+	flag.Usage()
+
+	// As an extra test, double-check that with DRY_RUN set to true, main() exits right away.
+	ctx, cancelCtx = context.WithCancel(context.Background())
+	defer cancelCtx() // Prevent the linter from complaining about the leak of cancelCtx
+	revert := osx.MustSetenv("DRY_RUN", "true")
+	defer revert()
+	main()
 }
 
 type fakeNamer struct {
