@@ -16,12 +16,12 @@ package finder
 import (
 	"context"
 	"log"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/pusher/filename"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -99,21 +99,17 @@ func findFiles(directory filename.System, minFileAge time.Duration) []filename.S
 // herd problems after container restarts. We're not worried about overloading
 // GCS, but without this we might end up running `find` for every experiment
 // simultaneously forever, and this could periodically run the disk out of
-// IOPs. We use ExpFloat64 to ensure that the inter-`find` time is the
-// exponential distribution and that the time-distribution of `find` operations
-// is therefore memoryless.
+// IOPs. We use the memoryless library to ensure that the inter-`find` time is
+// the exponential distribution and that the time-distribution of `find`
+// operations is therefore memoryless.
 func FindForever(ctx context.Context, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, expectedSleepTime time.Duration) {
-	for {
-		sleepTime := time.Duration(rand.ExpFloat64()*float64(expectedSleepTime.Nanoseconds())) * time.Nanosecond
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.NewTimer(sleepTime).C:
-		}
-
-		files := findFiles(directory, maxFileAge)
-		for _, file := range files {
-			notificationChannel <- file
-		}
-	}
+	memoryless.Run(
+		ctx,
+		func() {
+			files := findFiles(directory, maxFileAge)
+			for _, file := range files {
+				notificationChannel <- file
+			}
+		},
+		memoryless.Config{Expected: expectedSleepTime})
 }
