@@ -10,6 +10,7 @@ import (
 
 	"github.com/m-lab/pusher/filename"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sys/unix"
 
 	"github.com/rjeczalik/notify"
@@ -17,14 +18,14 @@ import (
 
 // Set up prometheus metrics.
 var (
-	pusherFileEventCount = prometheus.NewCounterVec(
+	pusherFileEventCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_events_total",
 			Help: "How many file events have we heard.",
 		},
 		[]string{"type"},
 	)
-	pusherFileEventErrorCount = prometheus.NewCounterVec(
+	pusherFileEventErrorCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_event_errors_total",
 			Help: "How many file event errors we have encountered.",
@@ -34,11 +35,6 @@ var (
 	// Allow mocking of os.Open to test error cases.
 	osOpen = os.Open
 )
-
-func init() {
-	prometheus.MustRegister(pusherFileEventCount)
-	prometheus.MustRegister(pusherFileEventErrorCount)
-}
 
 // Listener contains all member variables required for the state of a running
 // file listener.

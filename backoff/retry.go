@@ -9,17 +9,18 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
-	pusherRetries = prometheus.NewCounterVec(
+	pusherRetries = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_retries_total",
 			Help: "The number of times we have retried the function",
 		},
 		[]string{"function"},
 	)
-	pusherMaxRetries = prometheus.NewCounterVec(
+	pusherMaxRetries = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_max_retries_total",
 			Help: "The number of times we have hit the max backoff time when retrying the function",
@@ -27,11 +28,6 @@ var (
 		[]string{"function"},
 	)
 )
-
-func init() {
-	prometheus.MustRegister(pusherRetries)
-	prometheus.MustRegister(pusherMaxRetries)
-}
 
 // Retry retries calling a function until the function returns a non-nil error.
 // It increments two prometheus counters to keep track of how many errors it has

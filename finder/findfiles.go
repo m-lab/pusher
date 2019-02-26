@@ -24,29 +24,24 @@ import (
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/pusher/filename"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Set up the prometheus metrics.
 var (
-	pusherFinderRuns = prometheus.NewCounter(prometheus.CounterOpts{
+	pusherFinderRuns = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "pusher_finder_runs_total",
 		Help: "How many times has FindFiles been called",
 	})
-	pusherFinderFiles = prometheus.NewCounter(prometheus.CounterOpts{
+	pusherFinderFiles = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "pusher_finder_files_found_total",
 		Help: "How many files has FindFiles found",
 	})
-	pusherFinderBytes = prometheus.NewCounter(prometheus.CounterOpts{
+	pusherFinderBytes = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "pusher_finder_bytes_found_total",
 		Help: "How many bytes has FindFiles found",
 	})
 )
-
-func init() {
-	prometheus.MustRegister(pusherFinderRuns)
-	prometheus.MustRegister(pusherFinderFiles)
-	prometheus.MustRegister(pusherFinderBytes)
-}
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.

@@ -16,100 +16,86 @@ import (
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/uploader"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
-	pusherTarfilesCreated = prometheus.NewCounterVec(
+	pusherTarfilesCreated = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_created_total",
 			Help: "The number of tarfiles the pusher has created",
 		},
 		[]string{"datatype"})
-	pusherTarfilesUploaded = prometheus.NewCounterVec(
+	pusherTarfilesUploaded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_successful_uploads_total",
 			Help: "The number of tarfiles the pusher has uploaded",
 		},
 		[]string{"datatype"})
-	pusherFilesPerTarfile = prometheus.NewHistogramVec(
+	pusherFilesPerTarfile = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_files_per_tarfile",
 			Help:    "The number of files in each tarfile the pusher has uploaded",
 			Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000},
 		},
 		[]string{"datatype"})
-	pusherBytesPerTarfile = prometheus.NewHistogramVec(
+	pusherBytesPerTarfile = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_bytes_per_tarfile",
 			Help:    "The number of bytes in each tarfile the pusher has uploaded",
 			Buckets: []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
 		},
 		[]string{"datatype"})
-	pusherBytesPerFile = prometheus.NewHistogramVec(
+	pusherBytesPerFile = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pusher_bytes_per_file",
 			Help:    "The number of bytes in each file the pusher has uploaded",
 			Buckets: []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
 		},
 		[]string{"datatype"})
-	pusherTarfileDuplicateFiles = prometheus.NewCounterVec(
+	pusherTarfileDuplicateFiles = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_duplicates_total",
 			Help: "The number of times we attempted to add a file twice to the same tarfile",
 		},
 		[]string{"datatype"})
-	pusherFileReadErrors = prometheus.NewCounterVec(
+	pusherFileReadErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_read_errors_total",
 			Help: "The number of times we could not read or stat a file that we were trying to add to the tarfile",
 		},
 		[]string{"datatype"})
-	pusherFilesAdded = prometheus.NewCounterVec(
+	pusherFilesAdded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_files_added_total",
 			Help: "The number of files we have added to a tarfile",
 		},
 		[]string{"datatype"})
-	pusherFilesRemoved = prometheus.NewCounterVec(
+	pusherFilesRemoved = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_files_removed_total",
 			Help: "The number of files we have removed from the disk after upload",
 		},
 		[]string{"datatype"})
-	pusherFileRemoveErrors = prometheus.NewCounterVec(
+	pusherFileRemoveErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_remove_errors_total",
 			Help: "The number of times the os.Remove call failed",
 		},
 		[]string{"datatype"})
-	pusherEmptyUploads = prometheus.NewCounterVec(
+	pusherEmptyUploads = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_empty_uploads_total",
 			Help: "The number of times we tried to upload a tarfile with nothing in it",
 		},
 		[]string{"datatype"})
-	pusherSuccessTimestamp = prometheus.NewGaugeVec(
+	pusherSuccessTimestamp = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "pusher_success_timestamp",
 			Help: "The unix timestamp of the most recent pusher success",
 		},
 		[]string{"datatype"})
 )
-
-func init() {
-	prometheus.MustRegister(pusherTarfilesCreated)
-	prometheus.MustRegister(pusherTarfilesUploaded)
-	prometheus.MustRegister(pusherFilesPerTarfile)
-	prometheus.MustRegister(pusherBytesPerTarfile)
-	prometheus.MustRegister(pusherBytesPerFile)
-	prometheus.MustRegister(pusherTarfileDuplicateFiles)
-	prometheus.MustRegister(pusherFileReadErrors)
-	prometheus.MustRegister(pusherFilesAdded)
-	prometheus.MustRegister(pusherFilesRemoved)
-	prometheus.MustRegister(pusherFileRemoveErrors)
-	prometheus.MustRegister(pusherEmptyUploads)
-	prometheus.MustRegister(pusherSuccessTimestamp)
-}
 
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
