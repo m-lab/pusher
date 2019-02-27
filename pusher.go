@@ -4,19 +4,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"path"
 	"time"
 
-	"github.com/m-lab/go/httpx"
+	"github.com/m-lab/go/prometheusx"
 
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/rtx"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/finder"
@@ -103,13 +101,7 @@ spaces, dashes, underscores, or any other special characters.
 	}
 
 	// Start up the monitoring service.
-	metricMux := http.NewServeMux()
-	metricMux.Handle("/metrics", promhttp.Handler())
-	metricServer := http.Server{
-		Addr:    *monitorAddr,
-		Handler: metricMux,
-	}
-	httpx.ListenAndServeAsync(&metricServer)
+	metricServer := prometheusx.MustStartPrometheus(*monitorAddr)
 	<-ctx.Done()
 	metricServer.Shutdown(ctx)
 }

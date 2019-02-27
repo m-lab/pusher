@@ -1,18 +1,18 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/m-lab/go/prometheusx"
 
 	"cloud.google.com/go/storage"
 	"github.com/m-lab/go/osx"
@@ -21,12 +21,11 @@ import (
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
-	"github.com/prometheus/prometheus/util/promlint"
 
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 )
 
-func TestMainAndPrometheusMetrics(t *testing.T) {
+func TestMainDoesntCrash(t *testing.T) {
 	ctx, cancelCtx = context.WithCancel(context.Background())
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestMain")
 	defer os.RemoveAll(tempdir)
@@ -54,26 +53,11 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 	go func() {
 		// Wait 2 seconds to lose all race conditions.
 		time.Sleep(2 * time.Second)
-		metricReader, err := http.Get("http://localhost:9000/metrics")
-		if err != nil || metricReader == nil {
-			t.Errorf("Could not GET metrics: %v", err)
-		}
-		metricBytes, err := ioutil.ReadAll(metricReader.Body)
-		if err != nil {
-			t.Errorf("Could not read metrics: %v", err)
-		}
-		metricsLinter := promlint.New(bytes.NewBuffer(metricBytes))
-		problems, err := metricsLinter.Lint()
-		if err != nil {
-			t.Errorf("Could not lint metrics: %v", err)
-		}
-		for _, p := range problems {
-			t.Errorf("Bad metric %v: %v", p.Metric, p.Text)
-		}
 		cancelCtx()
 	}()
 	os.Args = append(os.Args, "testdata") // Monitor the testdata directory inside of tempdir.
 	main()
+	// When this exits, we're good.
 
 	// Make sure our custom usage message doesn't crash everything.
 	flag.Usage()
@@ -84,6 +68,10 @@ func TestMainAndPrometheusMetrics(t *testing.T) {
 	revert := osx.MustSetenv("DRY_RUN", "true")
 	defer revert()
 	main()
+}
+
+func TestLintMetrics(t *testing.T) {
+	prometheusx.LintMetrics(t)
 }
 
 type fakeNamer struct {

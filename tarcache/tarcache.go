@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/pusher/filename"
@@ -19,32 +20,26 @@ import (
 )
 
 var (
-	pusherTarfilesUploadCalls = prometheus.NewCounterVec(
+	pusherTarfilesUploadCalls = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_tarfiles_upload_calls_total",
 			Help: "The number of times upload has been called",
 		},
 		[]string{"datatype", "reason"},
 	)
-	pusherStrangeFilenames = prometheus.NewCounterVec(
+	pusherStrangeFilenames = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_strange_filenames_total",
 			Help: "The number of files we have seen with names that looked surprising in some way",
 		},
 		[]string{"datatype"})
-	pusherFileOpenErrors = prometheus.NewCounterVec(
+	pusherFileOpenErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_open_errors_total",
 			Help: "The number of times we could not open a file that we were trying to add to the tarfile",
 		},
 		[]string{"datatype"})
 )
-
-func init() {
-	prometheus.MustRegister(pusherTarfilesUploadCalls)
-	prometheus.MustRegister(pusherStrangeFilenames)
-	prometheus.MustRegister(pusherFileOpenErrors)
-}
 
 // TarCache contains everything you need to incrementally create a tarfile.
 // Once enough time has passed since the first file was added OR the resulting
