@@ -29,7 +29,7 @@ var (
 	monitorAddr     = flag.String("monitoring_address", ":9000", "The address and port on which prometheus metrics should be exported.")
 	project         = flag.String("project", "mlab-sandbox", "The google cloud project")
 	directory       = flag.String("directory", "/var/spool", "The directory containing one subdirectory per datatype.")
-	bucket          = flag.String("bucket", "scraper-mlab-sandbox", "The GCS bucket to upload data to")
+	bucket          = flag.String("bucket", "pusher-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
 	nodeName        = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
