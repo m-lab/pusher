@@ -25,6 +25,26 @@ import (
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 )
 
+func TestMainDoesCrashOnEmptyDatatypes(t *testing.T) {
+	fatalCalled := false
+	logFatal = func(i ...interface{}) {
+		fatalCalled = true
+		panic(i)
+	}
+	defer func() {
+		logFatal = log.Fatal
+	}()
+	defer func() {
+		recover()
+		if !fatalCalled {
+			t.Error("Fatal was never called")
+		}
+	}()
+
+	datatypes = []string{}
+	main()
+}
+
 func TestMainDoesntCrash(t *testing.T) {
 	ctx, cancelCtx = context.WithCancel(context.Background())
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestMain")
@@ -45,6 +65,7 @@ func TestMainDoesntCrash(t *testing.T) {
 		{"EXPERIMENT", "exp"},
 		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org"},
 		{"MONITORING_ADDRESS", "localhost:9000"},
+		{"DATATYPE", "testdata"},
 	}
 	for i := range newVars {
 		revert := osx.MustSetenv(newVars[i].name, newVars[i].value)
@@ -55,7 +76,6 @@ func TestMainDoesntCrash(t *testing.T) {
 		time.Sleep(2 * time.Second)
 		cancelCtx()
 	}()
-	os.Args = append(os.Args, "testdata") // Monitor the testdata directory inside of tempdir.
 	main()
 	// When this exits, we're good.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"time"
@@ -36,14 +37,20 @@ var (
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
+	datatypes       = flagx.StringArray{}
 
 	// Create a single unified context and a cancellationMethod for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
+
+	// A shim for log.Fatal to allow mocking for testing.
+	logFatal = log.Fatal
 )
 
 func init() {
 	// Set up the size flag with a custom parser.
 	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
+	// Set up the datatype flag with the appropriate parser.
+	flag.Var(&datatypes, "datatype", "The datatype to scrape within the directory. This argument should appear at least once, and may appear multiple times.")
 }
 
 func main() {
@@ -68,7 +75,11 @@ spaces, dashes, underscores, or any other special characters.
 	}
 	// We want to get flag values from the environment or from the command-line.
 	flag.Parse()
-	flagx.ArgsFromEnv(flag.CommandLine)
+	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse flags from the environment")
+
+	if len(datatypes) == 0 {
+		logFatal("You must specify at least one datatype")
+	}
 
 	if *dryRun {
 		cancelCtx()
@@ -76,7 +87,7 @@ spaces, dashes, underscores, or any other special characters.
 		defer cancelCtx()
 	}
 
-	for _, datatype := range flag.Args() {
+	for _, datatype := range datatypes {
 		// Set up the upload system.
 		namer, err := namer.New(datatype, *experiment, *nodeName)
 		rtx.Must(err, "Could not create a new Namer")
