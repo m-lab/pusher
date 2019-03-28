@@ -25,4 +25,9 @@ script:
     go test -v -covermode=count -coverprofile=__coverage.cov -coverpkg=./... ./...
 - $HOME/gopath/bin/goveralls -coverprofile=__coverage.cov -service=travis-ci
 - docker build -t pushertest .
-- docker run pushertest --dry_run
+- mkdir fakedata;
+    docker run
+      -v `pwd`/fakedata:/var/spool/fakedata
+      -v $TRAVIS_BUILD_DIR:/creds
+      -e GOOGLE_APPLICATION_CREDENTIALS=/creds/creds.json
+      pushertest --dry_run --directory /var/spool --datatype fakedata
