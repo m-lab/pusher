@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m-lab/go/prometheusx"
-
 	"cloud.google.com/go/storage"
 	"github.com/m-lab/go/osx"
+	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/listener"
@@ -91,7 +90,7 @@ func TestMainDoesntCrash(t *testing.T) {
 }
 
 func TestLintMetrics(t *testing.T) {
-	prometheusx.LintMetrics(t)
+	promtest.LintMetrics(t)
 }
 
 type fakeNamer struct {
