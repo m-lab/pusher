@@ -4,7 +4,14 @@ FROM golang:1.11 as build
 # Don't add any of the other libraries, because we live at HEAD.
 ENV CGO_ENABLED 0
 COPY . /go/src/github.com/m-lab/pusher
-RUN go get -v github.com/m-lab/pusher
+WORKDIR /go/src/github.com/m-lab/pusher
+
+# Build pusher and put the git commit hash into the binary.
+RUN COMMIT=$(git log -1 --format=%h) \
+    go get \
+      -v \
+      -ldflags "-X github.com/m-lab/go/prometheusx.GitShortCommit=${COMMIT}" \
+      github.com/m-lab/pusher
 
 # Now copy the built binary into a minimal base image.
 FROM alpine:3.7
