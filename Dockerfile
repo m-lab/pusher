@@ -7,11 +7,10 @@ COPY . /go/src/github.com/m-lab/pusher
 RUN go get -v github.com/m-lab/pusher
 
 # Now copy the built binary into a minimal base image.
-# For debugging, use Alpine Linux as the base with the image alpine:3.7
-# For a stable production environment use gcr.io/distroless/static
-# TODO(https://github.com/m-lab/pusher/issues/45):
-#   switch the base image to a distroless one once the platform is stable
 FROM alpine:3.7
+# By default, alpine has no root certs. Add them so pusher can use PKI to
+# verify that Google Cloud Storage is actually Google Cloud Storage.
+RUN apk add --no-cache ca-certificates
 COPY --from=build /go/bin/pusher /
 WORKDIR /
 
