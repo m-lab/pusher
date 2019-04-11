@@ -81,12 +81,15 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 		log.Println("Context canceled")
 	}
 
+	// Start the timer before we do anything else, to ensure that timer time and
+	// wall clock time are as aligned as possible.
+	timer := time.NewTimer(waitTime)
+
 	log.Printf("Signal received. Forcing emergency upload twice.")
 	termCancel()
 	log.Printf("First emergency upload complete. About to wait for %v.\n", waitTime)
 
 	// Sleep, but stop sleeping if the context is canceled.
-	timer := time.NewTimer(waitTime)
 	select {
 	case <-timer.C:
 		log.Println("Timer complete")
