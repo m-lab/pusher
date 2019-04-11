@@ -42,7 +42,7 @@ var (
 	datatypes       = flagx.StringArray{}
 	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receving a SIGTERM before we upload everything on an emergenecy basis.")
 
-	// Create a single unified context and a cancellationMethod for said context.
+	// Create a single unified context and a cancellation method for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
 
 	// A shim for log.Fatal to allow mocking for testing.
@@ -60,6 +60,9 @@ func init() {
 // sigterm is received. TarCache contains two contexts. One that causes data to
 // be uploaded immediately, but allows data collection to continue, and one that
 // causes data to be uploaded and the the tarcache loop exits.
+//
+// Receving a signal in this signal handler sets pusher on an inexorable path
+// for main to exit.
 //
 // The signal handler, when this process receives the appropriate signal from
 // the OS, cancels the first context, waits for a bit, and then cancels the
@@ -95,6 +98,7 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 	log.Println("Beginning last emergency upload.")
 	killCancel()
 	log.Println("Last emergency upload complete.")
+	cancelCtx()
 	log.Println("Signal handler complete.")
 }
 
@@ -143,8 +147,11 @@ spaces, dashes, underscores, or any other special characters.
 	metricServer := prometheusx.MustServeMetrics()
 	defer metricServer.Shutdown(ctx)
 
+	// A waitgroup to allow us to keep the program running as long as tarcache
+	// ListenForever loops are still running.
+	wg := sync.WaitGroup{}
+
 	// Set up pushing for every datatype.
-	tarCacheWaitGroup := sync.WaitGroup{}
 	for _, datatype := range datatypes {
 		// Set up the upload system.
 		namer, err := namer.New(datatype, *experiment, *nodeName)
@@ -157,11 +164,11 @@ spaces, dashes, underscores, or any other special characters.
 		datadir := filename.System(path.Join(*directory, datatype))
 
 		// Set up the file-bundling tarcache system.
-		tarCache, pusherChannel := tarcache.New(datadir, datatype, sizeThreshold, *ageThreshold, uploader)
-		tarCacheWaitGroup.Add(1)
+		tc, pusherChannel := tarcache.New(datadir, datatype, sizeThreshold, *ageThreshold, uploader)
+		wg.Add(1)
 		go func() {
-			tarCache.ListenForever(termContext, killContext)
-			tarCacheWaitGroup.Done()
+			tc.ListenForever(termContext, killContext)
+			wg.Done()
 		}()
 
 		// Send all file close and file move events to the tarCache.
@@ -172,6 +179,8 @@ spaces, dashes, underscores, or any other special characters.
 		// Send very old or missed files to the tarCache as a cleanup precaution.
 		go finder.FindForever(ctx, datadir, *maxFileAge, pusherChannel, *cleanupInterval)
 	}
-	tarCacheWaitGroup.Wait()
-	<-ctx.Done()
+
+	// Wait until every TarCache.ListenForever loop has terminated. Once every loop
+	// has terminated, pusher's reason to exist has disappeared too, so exit after.
+	wg.Wait()
 }

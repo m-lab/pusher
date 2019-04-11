@@ -84,9 +84,6 @@ func New(rootDirectory filename.System, datatype string, sizeThreshold bytecount
 // allows us to ensure that all file processing happens in this single thread,
 // no matter whether the processing is happening due to age thresholds or size
 // thresholds.
-//
-// When ListenForever exits, all the component channels of the TarCache are
-// closed.
 func (t *TarCache) ListenForever(termCtx context.Context, killCtx context.Context) {
 	for {
 		select {
