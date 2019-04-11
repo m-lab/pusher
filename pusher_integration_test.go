@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -121,7 +123,7 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 	}
 
 	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", 1, 1, up)
-	go tarCache.ListenForever(ctx)
+	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
 	l, err := listener.Create(filename.System(tempdir), pusherChannel)
@@ -235,7 +237,7 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 	}
 
 	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", 1, 1, up)
-	go tarCache.ListenForever(ctx)
+	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
 	l, err := listener.Create(filename.System(tempdir), pusherChannel)
@@ -284,5 +286,44 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 	}
 	if string(cloudContents) != contents {
 		t.Errorf("File contents %q != %q (url: %q)", string(cloudContents), contents, url)
+	}
+}
+
+func TestSignalHandler(t *testing.T) {
+	ctx, cancelCtx = context.WithCancel(context.Background())
+	defer cancelCtx()
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	waitTime := time.Duration(100 * time.Millisecond)
+	var cancel1Time, cancel2Time time.Time
+	var canceled1, canceled2 bool
+	cancel1 := func() {
+		canceled1 = true
+		cancel1Time = time.Now()
+		wg.Done()
+	}
+	cancel2 := func() {
+		canceled2 = true
+		cancel2Time = time.Now()
+		wg.Done()
+	}
+	go signalHandler(syscall.SIGUSR2, cancel1, waitTime, cancel2)
+	time.Sleep(100 * time.Millisecond) // Give the signal handler time to set up
+
+	// Verify that nothing is yet canceled.
+	if canceled1 || canceled2 {
+		t.Error("Nothing should be canceled yet", canceled1, canceled2)
+	}
+
+	// Send the signal
+	p, err := os.FindProcess(os.Getpid())
+	rtx.Must(err, "Could not get the current process")
+	p.Signal(syscall.SIGUSR2)
+
+	// Verify that cancel, wait, cancel is what happened.
+	wg.Wait()
+	timeBetweenCancels := cancel2Time.Sub(cancel1Time)
+	if timeBetweenCancels < waitTime/2 || timeBetweenCancels > waitTime*2 {
+		t.Errorf("%v is nowhere near %v", timeBetweenCancels, waitTime)
 	}
 }
