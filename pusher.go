@@ -66,6 +66,7 @@ func init() {
 // second context. In this way, we ensure that as much data as possible has been
 // successfully uploaded when pusher exits.
 func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.Duration, killCancel context.CancelFunc) {
+	// Set up the signal handler.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, sig)
 
@@ -80,7 +81,17 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 	log.Printf("Signal received. Forcing emergency upload twice.")
 	termCancel()
 	log.Printf("First emergency upload complete. About to wait for %v.\n", waitTime)
-	time.Sleep(waitTime)
+
+	// Sleep, but stop sleeping if the context is canceled.
+	timer := time.NewTimer(waitTime)
+	select {
+	case <-timer.C:
+		log.Println("Timer complete")
+	case <-ctx.Done():
+		log.Println("Context canceled")
+		timer.Stop()
+	}
+
 	log.Println("Beginning last emergency upload.")
 	killCancel()
 	log.Println("Last emergency upload complete.")
