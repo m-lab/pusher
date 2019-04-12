@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"io/ioutil"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,9 +17,12 @@ import (
 
 type fakeUploader struct {
 	calls int
+	mutex sync.Mutex
 }
 
 func (f *fakeUploader) Upload(_ filename.System, _ []byte) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
 	f.calls++
 	return nil
 }
@@ -49,7 +53,7 @@ func TestTimer(t *testing.T) {
 	tinyFile := filename.System("a/b/tinyfile")
 	otherTinyFile := filename.System("c/d/tinyfile")
 	ctx := context.Background()
-	go tarCache.ListenForever(ctx)
+	go tarCache.ListenForever(ctx, ctx)
 	channel <- tinyFile
 	channel <- otherTinyFile
 	if uploader.calls != 0 {
@@ -84,15 +88,75 @@ func TestTimer(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
+	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestContextCancellation")
+	rtx.Must(err, "Could not create tempdir")
+	defer os.RemoveAll(tempdir)
+
+	oldDir, err := os.Getwd()
+	rtx.Must(err, "Could not get working directory")
+	rtx.Must(os.Chdir(tempdir), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
+
+	// Set up a tarcache with timeouts and bytecounts that ensure it will not fire with a small short test.
 	uploader := fakeUploader{}
-	tarCache, _ := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
-	ctx, cancel := context.WithCancel(context.Background())
+	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Gigabyte), time.Duration(100*time.Hour), &uploader)
+	killCtx, killCancel := context.WithCancel(context.Background())
+	termCtx, termCancel := context.WithCancel(killCtx)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		cancel()
+		tarCache.ListenForever(termCtx, killCtx)
+		wg.Done()
 	}()
-	// If this doesn't actually listen forever, then this test is a success.
-	tarCache.ListenForever(ctx)
+
+	// Wait a bit so that all channels are set up in the goroutine.
+	time.Sleep(100 * time.Millisecond)
+
+	// Add some files.
+	rtx.Must(os.MkdirAll("2010/04/23", 0777), "Could not make directories")
+	rtx.Must(ioutil.WriteFile("2010/04/23/testdata.txt", []byte("12345"), 0666), "Could not write test data")
+	fileChan <- filename.System("2010/04/23/testdata.txt")
+
+	rtx.Must(os.MkdirAll("2010/04/24", 0777), "Could not make directories")
+	rtx.Must(ioutil.WriteFile("2010/04/24/testdata.txt", []byte("12345"), 0666), "Could not write test data")
+	fileChan <- filename.System("2010/04/24/testdata.txt")
+
+	// Wait a bit so that all channel input can get processed.
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify that nothing has been uploaded.
+	if uploader.calls != 0 {
+		t.Errorf("Should have uploaded 0 times, not %d", uploader.calls)
+	}
+
+	// Cancel things with the first context to cause an upload and then wait for the cancellation to take effect.
+	termCancel()
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that something has been uploaded in each of the subdirectories
+	if uploader.calls != 2 {
+		t.Errorf("Should have uploaded 2 times, not %d", uploader.calls)
+	}
+
+	// Add another file.
+	rtx.Must(os.MkdirAll("2010/04/23", 0777), "Could not make directories")
+	rtx.Must(ioutil.WriteFile("2010/04/23/testdata2.txt", []byte("12345"), 0666), "Could not write test data")
+	fileChan <- filename.System("2010/04/23/testdata2.txt")
+
+	// Wait a bit so that all channel input can get processed.
+	time.Sleep(10 * time.Millisecond)
+
+	// Cancel the second context to cause another upload and loop termination.
+	killCancel()
+
+	// Wait for the cancellation to terminate the loop.
+	wg.Wait()
+
+	// Verify that one more upload happened.
+	if uploader.calls != 3 {
+		t.Errorf("Should have uploaded 3 times in all, not %d", uploader.calls)
+	}
 }
 
 func TestChannelCloseCancellation(t *testing.T) {
@@ -104,5 +168,5 @@ func TestChannelCloseCancellation(t *testing.T) {
 		close(inputChannel)
 	}()
 	// If this doesn't actually listen forever, then this test is a success.
-	tarCache.ListenForever(ctx)
+	tarCache.ListenForever(ctx, ctx)
 }

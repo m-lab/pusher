@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -83,7 +84,7 @@ func New(rootDirectory filename.System, datatype string, sizeThreshold bytecount
 // allows us to ensure that all file processing happens in this single thread,
 // no matter whether the processing is happening due to age thresholds or size
 // thresholds.
-func (t *TarCache) ListenForever(ctx context.Context) {
+func (t *TarCache) ListenForever(termCtx context.Context, killCtx context.Context) {
 	for {
 		select {
 		case subdir := <-t.timeoutChannel:
@@ -95,10 +96,44 @@ func (t *TarCache) ListenForever(ctx context.Context) {
 			} else {
 				return
 			}
-		case <-ctx.Done():
+		case <-termCtx.Done():
+			t.uploadAll()
+		case <-killCtx.Done():
+			t.uploadAll()
 			return
 		}
 	}
+}
+
+func (t *TarCache) uploadAll() {
+	// Upload everything in parallel on an emergency basis.
+	wg := sync.WaitGroup{}
+
+	// Make a copy of the list of subdirectories because uploadAndDelete modifies
+	// the t.currentTarfile map.
+	currentTarfiles := []string{}
+	for subdir := range t.currentTarfile {
+		currentTarfiles = append(currentTarfiles, subdir)
+	}
+
+	// We can't use tarcache.UploadAndDelete in this loop without adding mutexes to
+	// all accesses and modifications of t.currentTarfile or uploading all these
+	// tarfiles in series rather than in parallel. Adding mutexes to all accesses
+	// seems like overkill because everything else in a tarcache is
+	// single-threaded; Uploading tarfiles in series seems contrary to the idea
+	// that uploadAll is called on an emergency basis.
+	for _, subdirTarfile := range t.currentTarfile {
+		wg.Add(1)
+		go func(tf tarfile.Tarfile) {
+			pusherTarfilesUploadCalls.WithLabelValues(t.datatype, "emergency_upload").Inc()
+			tf.UploadAndDelete(t.uploader)
+			wg.Done()
+		}(subdirTarfile)
+	}
+	wg.Wait()
+
+	// After uploading everything, clear the cache.
+	t.currentTarfile = make(map[string]tarfile.Tarfile)
 }
 
 func (t *TarCache) makeTimer(subdir string) *time.Timer {
