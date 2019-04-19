@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/prometheusx"
+	"github.com/m-lab/go/uniformnames"
 
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
@@ -114,20 +115,17 @@ func main() {
 Every flag can also be set by setting an all-caps environment variable with
 the same name as the flag. For example if "-bucket" was not on the
 commandline, the GCS bucket to use can also be set by the $BUCKET environment
-variable.
-
-All unparsed command-line arguments will be treated as independent datatypes
-for uploading to GCS. These datatypes determine the subdirectory of GCS the
-data is uploaded to, and they determine the subdirectory of /var/spool to
-watch. Best practices dictate that these names should also be the first part
-of the hostname of the machine, the name of the tables where this data
-arrives in BigQuery, and consist only of the ASCII [0-9a-zA-Z] without
-spaces, dashes, underscores, or any other special characters.
+variable. The name of the experiment and datatypes should conform to the
+M-Lab uniform naming conventions.
 `)
 	}
 	// We want to get flag values from the environment or from the command-line.
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse flags from the environment")
+	rtx.Must(uniformnames.Check(*experiment), "Experiment name %q did not conform to the unified naming convention", *experiment)
+	for _, d := range datatypes {
+		rtx.Must(uniformnames.Check(d), "Datatype name %d did not conform to the unified naming convention", d)
+	}
 
 	if len(datatypes) == 0 {
 		logFatal("You must specify at least one datatype")
