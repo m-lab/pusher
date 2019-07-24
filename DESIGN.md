@@ -136,7 +136,7 @@ The only job of the main function is to assemble these components in the shown m
 
 ## 6. Caveats
 
-If files can't be uploaded, then they will remain on disk and, as the experiment runs, fill the disk. This is right and good, but full disks cause problems. The directories used for data for pusher should be on a partition separate from the main system, to ensure that GCS reachability problems don't cause the host itself to become unstable.
+If files can't be uploaded, then they will remain on disk and, as the experiment runs, fill the disk. This is right and good, but full disks cause problems. The directories used for data for pusher should be on a partition separate from the main system, to ensure that GCS reachability problems don't cause the host itself to become unstable.  If a directory that Pusher is supposed to monitor does not exist, Pusher will create it.
 
 ## 7. Security Considerations
 
