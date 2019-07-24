@@ -163,6 +163,8 @@ M-Lab uniform naming conventions.
 		uploader := uploader.Create(ctx, stiface.AdaptClient(client), *bucket, namer)
 
 		datadir := filename.System(path.Join(*directory, datatype))
+		// Make the directory (does nothing if the directory already exists)
+		rtx.Must(os.MkdirAll(string(datadir), 0666), "Could not create %s", datadir)
 
 		// Set up the file-bundling tarcache system.
 		tc, pusherChannel := tarcache.New(datadir, datatype, sizeThreshold, *ageThreshold, uploader)
