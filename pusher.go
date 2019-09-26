@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"strings"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -114,15 +114,11 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 // code here for itself.
 func mlabNameToNodeName(nodeName string) (string, error) {
 	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
-	fields := strings.SplitN(nodeName, ".", 3)
-	if len(fields) < 2 {
-		return "", fmt.Errorf("node name is missing machine and site fields: %s", nodeName)
+	re := regexp.MustCompile(`^(mlab\d).([a-z]{3}\d[\dt]).measurement-lab.org$`)
+	if !re.MatchString(nodeName) {
+		return "", fmt.Errorf("Bad node name: %s", nodeName)
 	}
-	if len(fields[0]) != 5 || len(fields[1]) != 5 {
-		return "", fmt.Errorf("machine and site names should have five characters, e.g. mlab5.abc0t: %s.%s",
-			fields[0], fields[1])
-	}
-	return fields[0] + "-" + fields[1], nil
+	return re.ReplaceAllString(nodeName, "$1-$2"), nil
 }
 
 func main() {
