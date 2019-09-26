@@ -109,8 +109,9 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 }
 
 // mlabNameToNodeName converts an M-Lab node name into a more generic name.
-// Arguably this does not belong here inside pusher, but M-Lab wrote pusher so
-// it gets to put some special-case code here for itself.
+// Arguably this does not belong here inside Pusher, which is ostensibly a very
+// general tool, but M-Lab wrote Pusher so it gets to put some special-case
+// code here for itself.
 func mlabNameToNodeName(nodeName string) (string, error) {
 	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
 	fields := strings.SplitN(nodeName, ".", 3)
