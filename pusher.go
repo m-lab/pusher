@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -34,14 +35,15 @@ var (
 	directory       = flag.String("directory", "/var/spool", "The directory containing one subdirectory per datatype.")
 	bucket          = flag.String("bucket", "pusher-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
-	nodeName        = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.")
+	mlabNodeName    = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.  Only used if node_name is set to \"\".")
+	nodeName        = flag.String("node_name", "", "A unique string to identify the host producing the data.  Will be used in a filename.")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
 	datatypes       = flagx.StringArray{}
-	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receving a SIGTERM before we upload everything on an emergenecy basis.")
+	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receiving a SIGTERM before we upload everything on an emergency basis.")
 
 	// Create a single unified context and a cancellation method for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
@@ -106,6 +108,19 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 	log.Println("Signal handler complete.")
 }
 
+// mlabNameToNodeName converts an M-Lab node name into a more generic name.
+// Arguably this does not belong here inside Pusher, which is ostensibly a very
+// general tool, but M-Lab wrote Pusher so it gets to put some special-case
+// code here for itself.
+func mlabNameToNodeName(nodeName string) (string, error) {
+	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
+	re := regexp.MustCompile(`^(mlab\d)\.([a-z]{3}\d[\dt])\.measurement-lab\.org$`)
+	if !re.MatchString(nodeName) {
+		return "", fmt.Errorf("Bad node name: %s", nodeName)
+	}
+	return re.ReplaceAllString(nodeName, "$1-$2"), nil
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
@@ -125,6 +140,12 @@ M-Lab uniform naming conventions.
 	rtx.Must(uniformnames.Check(*experiment), "Experiment name %q did not conform to the unified naming convention", *experiment)
 	for _, d := range datatypes {
 		rtx.Must(uniformnames.Check(d), "Datatype name %d did not conform to the unified naming convention", d)
+	}
+	// If no --node_name was set, try using the --mlab_node_name.
+	if *nodeName == "" {
+		var err error
+		*nodeName, err = mlabNameToNodeName(*mlabNodeName)
+		rtx.Must(err, "--node_name was empty and --mlab_node_name did not parse correctly.")
 	}
 
 	if len(datatypes) == 0 {
@@ -155,8 +176,7 @@ M-Lab uniform naming conventions.
 	// Set up pushing for every datatype.
 	for _, datatype := range datatypes {
 		// Set up the upload system.
-		namer, err := namer.New(datatype, *experiment, *nodeName)
-		rtx.Must(err, "Could not create a new Namer")
+		namer := namer.New(datatype, *experiment, *nodeName)
 		client, err := storage.NewClient(ctx)
 		rtx.Must(err, "Could not create cloud storage client")
 
