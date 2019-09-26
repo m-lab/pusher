@@ -43,7 +43,7 @@ var (
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
 	datatypes       = flagx.StringArray{}
-	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receving a SIGTERM before we upload everything on an emergenecy basis.")
+	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receiving a SIGTERM before we upload everything on an emergency basis.")
 
 	// Create a single unified context and a cancellation method for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
