@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -34,7 +35,8 @@ var (
 	directory       = flag.String("directory", "/var/spool", "The directory containing one subdirectory per datatype.")
 	bucket          = flag.String("bucket", "pusher-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
-	nodeName        = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.")
+	mlabNodeName    = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.  Only used if node_name is set to \"\".")
+	nodeName        = flag.String("node_name", "", "A unique string to identify the host producing the data.  Will be used in a filename.")
 	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
@@ -106,6 +108,22 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 	log.Println("Signal handler complete.")
 }
 
+// mlabNameToNodeName converts an M-Lab node name into a more generic name.
+// Arguably this does not belong here inside pusher, but M-Lab wrote pusher so
+// it gets to put some special-case code here for itself.
+func mlabNameToNodeName(nodeName string) (string, error) {
+	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
+	fields := strings.SplitN(nodeName, ".", 3)
+	if len(fields) < 2 {
+		return "", fmt.Errorf("node name is missing machine and site fields: %s", nodeName)
+	}
+	if len(fields[0]) != 5 || len(fields[1]) != 5 {
+		return "", fmt.Errorf("machine and site names should have five characters, e.g. mlab5.abc0t: %s.%s",
+			fields[0], fields[1])
+	}
+	return fields[0] + "-" + fields[1], nil
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
@@ -125,6 +143,12 @@ M-Lab uniform naming conventions.
 	rtx.Must(uniformnames.Check(*experiment), "Experiment name %q did not conform to the unified naming convention", *experiment)
 	for _, d := range datatypes {
 		rtx.Must(uniformnames.Check(d), "Datatype name %d did not conform to the unified naming convention", d)
+	}
+	// If no --node_name was set, try using the --mlab_node_name.
+	if *nodeName == "" {
+		var err error
+		*nodeName, err = mlabNameToNodeName(*mlabNodeName)
+		rtx.Must(err, "--node_name was empty and --mlab_node_name did not parse correctly.")
 	}
 
 	if len(datatypes) == 0 {
@@ -155,8 +179,7 @@ M-Lab uniform naming conventions.
 	// Set up pushing for every datatype.
 	for _, datatype := range datatypes {
 		// Set up the upload system.
-		namer, err := namer.New(datatype, *experiment, *nodeName)
-		rtx.Must(err, "Could not create a new Namer")
+		namer := namer.New(datatype, *experiment, *nodeName)
 		client, err := storage.NewClient(ctx)
 		rtx.Must(err, "Could not create cloud storage client")
 
