@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/filename"
 	"github.com/rjeczalik/notify"
 	"golang.org/x/sys/unix"
@@ -41,17 +42,11 @@ func (m MockEventInfo) Sys() interface{} {
 
 func TestBadEvent(t *testing.T) {
 	dir, err := ioutil.TempDir("/tmp", "TestBadEvent.")
-	if err != nil {
-		t.Errorf("%v", err)
-		return
-	}
+	rtx.Must(err, "Could not create dir")
 	defer os.RemoveAll(dir)
 	ldfChan := make(chan filename.System)
 	l, err := Create(filename.System(dir), ldfChan)
-	if err != nil {
-		t.Errorf("%v", err)
-		return
-	}
+	rtx.Must(err, "Could not create listener")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go l.ListenForever(ctx)
