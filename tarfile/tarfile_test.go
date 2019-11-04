@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -124,4 +125,53 @@ func TestUploadAndDelete(t *testing.T) {
 	tf.Add("tinyfile", f, timerFactory)
 	tf.Add("disappearing", f2, timerFactory)
 	tf.UploadAndDelete(&fakeUploader{})
+}
+
+type uploaderThatSavesLocallyInstead struct {
+	localfilename string
+}
+
+func (u *uploaderThatSavesLocallyInstead) Upload(_ filename.System, contents []byte) error {
+	return ioutil.WriteFile(u.localfilename, contents, 0666)
+}
+
+func TestTimestampsArePreserved(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "tarfile.TestTimestampsArePreserved")
+	rtx.Must(err, "Could not create temp dir")
+	defer os.RemoveAll(tmp)
+	oldDir, err := os.Getwd()
+	rtx.Must(err, "Could not get working directory")
+	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
+
+	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	f, err := os.Open("tinyfile")
+	rtx.Must(err, "Could not open file we just wrote")
+	tf := tarfile.New("test", "")
+	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
+	tf.Add("tinyfile", f, timerFactory)
+
+	u := &uploaderThatSavesLocallyInstead{"file.tgz"}
+	tf.UploadAndDelete(u)
+
+	if _, err := os.Stat("tinyfile"); err == nil {
+		t.Error("Stat of tinyfile should fail because it should be deleted")
+	}
+
+	untar := exec.Command("tar", "xvfz", "file.tgz")
+	rtx.Must(untar.Run(), "Could not untar file.tgz")
+
+	s, err := os.Stat("tinyfile")
+	rtx.Must(err, "tinyfile should have been created")
+
+	// Unpreserved ModTimes result in Unix timestamp 0, which is before 1980.
+	//
+	// Testing whether the timestamp equals zero risks confusion due to
+	// timezones on the local filesystem and how the local tar command is
+	// configured and what the LC_LOCALE is, and probably other stuff because
+	// timezones are awful. We assume here that no timezone could possibly shift
+	// things by more than a decade.
+	if s.ModTime().Before(time.Date(1980, 1, 1, 1, 1, 1, 1, time.UTC)) {
+		t.Error("ModTime was not preserved")
+	}
 }

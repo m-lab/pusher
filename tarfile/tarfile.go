@@ -179,9 +179,10 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 		return
 	}
 	header := &tar.Header{
-		Name: string(cleanedFilename),
-		Mode: 0666,
-		Size: size,
+		Name:    string(cleanedFilename),
+		Mode:    0666,
+		Size:    size,
+		ModTime: fstat.ModTime(),
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,
