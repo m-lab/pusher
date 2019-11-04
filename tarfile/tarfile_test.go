@@ -163,6 +163,14 @@ func TestTimestampsArePreserved(t *testing.T) {
 
 	s, err := os.Stat("tinyfile")
 	rtx.Must(err, "tinyfile should have been created")
+
+	// Unpreserved ModTimes result in Unix timestamp 0, which is before 1980.
+	//
+	// Testing whether the timestamp equals zero risks confusion due to
+	// timezones on the local filesystem and how the local tar command is
+	// configured and what the LC_LOCALE is, and probably other stuff because
+	// timezones are awful. We assume here that no timezone could possibly shift
+	// things by more than a decade.
 	if s.ModTime().Before(time.Date(1980, 1, 1, 1, 1, 1, 1, time.UTC)) {
 		t.Error("ModTime was not preserved")
 	}
