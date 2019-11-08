@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m-lab/go/flagx"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -56,11 +58,12 @@ type TarCache struct {
 	rootDirectory  filename.System
 	uploader       uploader.Uploader
 	datatype       string
+	metadata       *flagx.KeyValue
 }
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory filename.System, datatype string, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
+func New(rootDirectory filename.System, datatype string, metadata *flagx.KeyValue, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
 	if !strings.HasSuffix(string(rootDirectory), "/") {
 		rootDirectory = filename.System(string(rootDirectory) + "/")
 	}
@@ -76,6 +79,7 @@ func New(rootDirectory filename.System, datatype string, sizeThreshold bytecount
 		ageThreshold:   ageThreshold,
 		uploader:       uploader,
 		datatype:       datatype,
+		metadata:       metadata,
 	}
 	return tarCache, fileChannel
 }
@@ -159,7 +163,7 @@ func (t *TarCache) add(fname filename.System) {
 	}
 	subdir := internalName.Subdir()
 	if _, ok := t.currentTarfile[subdir]; !ok {
-		t.currentTarfile[subdir] = tarfile.New(filename.System(subdir), t.datatype)
+		t.currentTarfile[subdir] = tarfile.New(filename.System(subdir), t.datatype, t.metadata.Get())
 	}
 	tf := t.currentTarfile[subdir]
 	tf.Add(internalName, file, t.makeTimer)

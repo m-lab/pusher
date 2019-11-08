@@ -1,7 +1,9 @@
 package tarcache
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -9,10 +11,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/m-lab/go/flagx"
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
@@ -23,7 +28,7 @@ import (
 // verifyTarfileContents checks that the referenced tarfile actually contains
 // each file in contents.  The filenames should not contain characters which
 // have a special meaning in a regular expression context.
-func verifyTarfileContents(t *testing.T, tarfile string, contents []FileInTarfile) {
+func verifyTarfileContents(t *testing.T, tarfile string, contents []FileInTarfile, metadata map[string]string) {
 	// Get the table of files in the tarfile.
 	cmd := exec.Command("tar", "tvfz", tarfile)
 	var out bytes.Buffer
@@ -59,6 +64,17 @@ func verifyTarfileContents(t *testing.T, tarfile string, contents []FileInTarfil
 		if !seen {
 			t.Errorf("Did not find file %s in the output of tar", contents[i].name)
 		}
+	}
+	// Get the metadata from the first file in the tarfile.
+	f, err := os.Open(tarfile)
+	rtx.Must(err, "Could not open tarfile %s", tarfile)
+	g, err := gzip.NewReader(f)
+	rtx.Must(err, "Could not open Gzip reader for %s", tarfile)
+	r := tar.NewReader(g)
+	h, err := r.Next()
+	rtx.Must(err, "Could not read first header of %s", tarfile)
+	if !reflect.DeepEqual(h.PAXRecords, metadata) {
+		t.Errorf("Bad metadata %v != %v", h.PAXRecords, metadata)
 	}
 }
 
@@ -96,8 +112,8 @@ func TestEmptyUpload(t *testing.T) {
 	}
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
-	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "")
+	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", make(map[string]string))
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
@@ -125,7 +141,7 @@ func TestUnreadableFile(t *testing.T) {
 	}
 	uploader := fakeUploader{}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	// This should not crash, even though the file does not exist.
 	tarCache.add(filename.System(tempdir + "/dne"))
 	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
@@ -157,8 +173,10 @@ func TestAdd(t *testing.T) {
 		requestedRetries: 1,
 		expectedDir:      "a/b",
 	}
+	kv := &flagx.KeyValue{}
+	rtx.Must(kv.Set("MLAB.testkey=testvalue"), "Could not set key to value")
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "testdata", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	tarCache, _ := New(filename.System(tempdir), "testdata", kv, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}
@@ -187,7 +205,11 @@ func TestAdd(t *testing.T) {
 	verifyTarfileContents(t, "tarfile.tgz",
 		[]FileInTarfile{
 			{name: "a/b/tinyfile", size: 8},
-			{name: "a/b/bigfile", size: 2000}})
+			{name: "a/b/bigfile", size: 2000}},
+		map[string]string{
+			"MLAB.datatype": "testdata",
+			"MLAB.testkey":  "testvalue",
+		})
 	// Now add one more file to make sure that the cache still works after upload.
 	ioutil.WriteFile(tempdir+"/tiny2", []byte("12345678"), os.FileMode(0666))
 	tiny2File := filename.System(tempdir + "/tiny2")

@@ -43,6 +43,7 @@ var (
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
 	datatypes       = flagx.StringArray{}
+	metadata        = flagx.KeyValue{}
 	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receiving a SIGTERM before we upload everything on an emergency basis.")
 
 	// Create a single unified context and a cancellation method for said context.
@@ -57,6 +58,8 @@ func init() {
 	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
 	// Set up the datatype flag with the appropriate parser.
 	flag.Var(&datatypes, "datatype", "The datatype to scrape within the directory. This argument should appear at least once, and may appear multiple times.")
+	// Set up the metadata flag with the appropriate parser
+	flag.Var(&metadata, "metadata", "Key-value pairs to be added to the metadata of each tarfile (flag may be repeated)")
 }
 
 // signalHandler allows the pusher to upload as much data as possible after a
@@ -187,7 +190,7 @@ M-Lab uniform naming conventions.
 		rtx.Must(os.MkdirAll(string(datadir), 0666), "Could not create %s", datadir)
 
 		// Set up the file-bundling tarcache system.
-		tc, pusherChannel := tarcache.New(datadir, datatype, sizeThreshold, *ageThreshold, uploader)
+		tc, pusherChannel := tarcache.New(datadir, datatype, &metadata, sizeThreshold, *ageThreshold, uploader)
 		wg.Add(1)
 		go func() {
 			tc.ListenForever(termContext, killContext)

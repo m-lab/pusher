@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
@@ -122,7 +123,7 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, 1, 1, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
@@ -236,7 +237,7 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", &flagx.KeyValue{}, 1, 1, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
