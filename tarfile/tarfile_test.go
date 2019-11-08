@@ -54,7 +54,7 @@ func TestAdd(t *testing.T) {
 	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
 	defer os.Chdir(oldDir)
 	timerFactoryCalls = 0
-	tf := tarfile.New("test", "")
+	tf := tarfile.New("test", "", map[string]string{})
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	if tf.Size() != 0 {
 		t.Errorf("Tarfile size is nonzero before anything is added to it")
@@ -78,7 +78,7 @@ func TestAdd(t *testing.T) {
 	}
 }
 func TestUploadAndDeleteOnEmpty(t *testing.T) {
-	tf := tarfile.New("test", "")
+	tf := tarfile.New("test", "", map[string]string{})
 	tf.UploadAndDelete(nil) // If this doesn't crash, then the test passes.
 }
 
@@ -120,7 +120,7 @@ func TestUploadAndDelete(t *testing.T) {
 	f2, err := os.Open("disappearing")
 	rtx.Must(err, "Could not open file we just wrote")
 	rtx.Must(os.Remove("disappearing"), "Could not delete file")
-	tf := tarfile.New("test", "")
+	tf := tarfile.New("test", "", map[string]string{})
 	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
 	tf.Add("tinyfile", f, timerFactory)
 	tf.Add("disappearing", f2, timerFactory)
@@ -147,7 +147,7 @@ func TestTimestampsArePreserved(t *testing.T) {
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	f, err := os.Open("tinyfile")
 	rtx.Must(err, "Could not open file we just wrote")
-	tf := tarfile.New("test", "")
+	tf := tarfile.New("test", "", map[string]string{})
 	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
 	tf.Add("tinyfile", f, timerFactory)
 

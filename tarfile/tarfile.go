@@ -107,6 +107,7 @@ type tarfile struct {
 	gzipWriter *gzip.Writer
 	subdir     filename.System
 	datatype   string
+	metadata   map[string]string
 }
 
 // Tarfile represents all the capabilities of a tarfile.  You can add files to it, upload it, and check its size.
@@ -117,12 +118,13 @@ type Tarfile interface {
 }
 
 // New creates a new tarfile to hold the contents of a particular subdirectory.
-func New(subdir filename.System, datatype string) Tarfile {
+func New(subdir filename.System, datatype string, metadata map[string]string) Tarfile {
 	pusherTarfilesCreated.WithLabelValues(datatype).Inc()
 	// TODO: profile and determine if preallocation is a good idea.
 	buffer := &bytes.Buffer{}
 	gzipWriter := gzip.NewWriter(buffer)
 	tarWriter := tar.NewWriter(gzipWriter)
+	metadata["MLAB.datatype"] = datatype
 	return &tarfile{
 		contents:   buffer,
 		tarWriter:  tarWriter,
@@ -130,6 +132,7 @@ func New(subdir filename.System, datatype string) Tarfile {
 		memberSet:  make(map[filename.Internal]struct{}),
 		subdir:     subdir,
 		datatype:   datatype,
+		metadata:   metadata,
 	}
 }
 
@@ -179,10 +182,11 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 		return
 	}
 	header := &tar.Header{
-		Name:    string(cleanedFilename),
-		Mode:    0666,
-		Size:    size,
-		ModTime: fstat.ModTime(),
+		Name:       string(cleanedFilename),
+		Mode:       0666,
+		Size:       size,
+		ModTime:    fstat.ModTime(),
+		PAXRecords: t.metadata,
 	}
 
 	// It's not at all clear how any of the below errors might be recovered from,

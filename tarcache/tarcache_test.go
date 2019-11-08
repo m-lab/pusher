@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/flagx"
+
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/filename"
@@ -48,7 +50,7 @@ func TestTimer(t *testing.T) {
 	ioutil.WriteFile("c/d/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 
 	uploader := &fakeUploader{}
-	tarCache, channel := tarcache.New(filename.System(tempdir), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
+	tarCache, channel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
 	// Add the small file, which should not trigger an upload.
 	tinyFile := filename.System("a/b/tinyfile")
 	otherTinyFile := filename.System("c/d/tinyfile")
@@ -99,7 +101,7 @@ func TestContextCancellation(t *testing.T) {
 
 	// Set up a tarcache with timeouts and bytecounts that ensure it will not fire with a small short test.
 	uploader := fakeUploader{}
-	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Gigabyte), time.Duration(100*time.Hour), &uploader)
+	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Gigabyte), time.Duration(100*time.Hour), &uploader)
 	killCtx, killCancel := context.WithCancel(context.Background())
 	termCtx, termCancel := context.WithCancel(killCtx)
 
@@ -161,7 +163,7 @@ func TestContextCancellation(t *testing.T) {
 
 func TestChannelCloseCancellation(t *testing.T) {
 	uploader := fakeUploader{}
-	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
 	ctx := context.Background()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
