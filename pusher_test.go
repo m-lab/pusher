@@ -15,6 +15,11 @@ func Test_mlabNameToNodeName(t *testing.T) {
 			want:     "mlab1-abc0t",
 		},
 		{
+			name:     "okay-cloud-name",
+			nodeName: "mlab1.abc0c.measurement-lab.org",
+			want:     "mlab1-abc0c",
+		},
+		{
 			name:     "failure-machine-too-short",
 			nodeName: "mlab.abc0t.measurement-lab.org",
 			wantErr:  true,
