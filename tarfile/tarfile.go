@@ -160,25 +160,22 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 	}
 	size := fstat.Size()
 	pusherBytesPerFile.WithLabelValues(t.datatype).Observe(float64(size))
-	// We read the file into memory instead of using io.Copy because if the use of
-	// io.Copy goes wrong, then we have to make the error fatal (because the
-	// already-written tarfile headers are now wrong), while the reading of disk
-	// into RAM, if it goes wrong, simply causes us to ignore the file and return.
+	// We read the file into memory instead of using io.Copy directly into the
+	// tarfile because if the use of io.Copy goes wrong, then we have to make
+	// the error fatal (because the already-written tarfile headers are now
+	// wrong), while the reading of disk into RAM, if it goes wrong, simply
+	// causes us to ignore the file and return.
 	//
 	// As things stand we have to choose between mitigating the risk of too-large
 	// files or mitigating the risk of unreadable files. The code below mitigates
 	// the risk of unreadable files. If too-large files become a problem, delete
 	// everything up to the declaration of the header and then replace the
-	// `tarWriter.Write(contents)` line with `io.Copy(tarWriter, file)`.
-	contents := make([]byte, size)
-	if n, err := file.Read(contents); int64(n) != size || err != nil {
+	// `io.Copy(t.tarWriter, contents)` line with `io.Copy(tarWriter, file)`.
+	contents := &bytes.Buffer{}
+	_, err = io.Copy(contents, file)
+	if err != nil {
 		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
 		log.Printf("Could not read %s (error: %q)\n", cleanedFilename, err)
-		return
-	}
-	if n, err := file.Read(make([]byte, 1)); n != 0 || err != io.EOF {
-		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
-		log.Printf("Could not after reading %d bytes, %s was not at EOF (error: %q)\n", size, cleanedFilename, err)
 		return
 	}
 	header := &tar.Header{
@@ -193,7 +190,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 	// so we treat them as unrecoverable using Must, and hope that the errors
 	// are transient and will not re-occur when the container is restarted.
 	rtx.Must(t.tarWriter.WriteHeader(header), "Could not write the tarfile header for %v", cleanedFilename)
-	_, err = t.tarWriter.Write(contents)
+	_, err = io.Copy(t.tarWriter, contents)
 	rtx.Must(err, "Could not write the tarfile contents for %v", cleanedFilename)
 
 	// Flush the data so that our in-memory filesize is accurate.

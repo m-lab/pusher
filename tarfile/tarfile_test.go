@@ -37,14 +37,6 @@ func (_ unreadableioFile) Read(_ []byte) (int, error) {
 	return 0, errors.New("This can't be read")
 }
 
-type tooLongioFile struct {
-	*os.File
-}
-
-func (_ tooLongioFile) Read(buf []byte) (int, error) {
-	return len(buf), nil
-}
-
 func TestAdd(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "tarfile.TestAdd")
 	rtx.Must(err, "Could not create temp dir")
@@ -72,7 +64,6 @@ func TestAdd(t *testing.T) {
 	tf.Add("tinyfile", f, nilTimerFactory)
 	tf.Add("tinyfile2", unstatAbleFilePointer{f}, nilTimerFactory)
 	tf.Add("tinyfile3", unreadableioFile{f}, nilTimerFactory)
-	tf.Add("tinyfile4", tooLongioFile{f}, nilTimerFactory)
 	if tf.Size() != oldsize {
 		t.Error("Bad files should not increase the size of the tarfile")
 	}
