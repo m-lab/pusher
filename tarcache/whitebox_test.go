@@ -114,9 +114,9 @@ func TestEmptyUpload(t *testing.T) {
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
 	config := memoryless.Config{
-		Min:      time.Duration(1 * time.Hour),
-		Expected: time.Duration(1 * time.Hour),
-		Max:      time.Duration(1 * time.Hour),
+		Min:      1 * time.Hour,
+		Expected: 1 * time.Hour,
+		Max:      1 * time.Hour,
 	}
 	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", make(map[string]string))
@@ -148,9 +148,9 @@ func TestUnreadableFile(t *testing.T) {
 	uploader := fakeUploader{}
 	// Ignore the returned channel - this is a whitebox test.
 	config := memoryless.Config{
-		Min:      time.Duration(1 * time.Hour),
-		Expected: time.Duration(1 * time.Hour),
-		Max:      time.Duration(1 * time.Hour),
+		Min:      1 * time.Hour,
+		Expected: 1 * time.Hour,
+		Max:      1 * time.Hour,
 	}
 	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	// This should not crash, even though the file does not exist.
@@ -188,9 +188,9 @@ func TestAdd(t *testing.T) {
 	rtx.Must(kv.Set("MLAB.testkey=testvalue"), "Could not set key to value")
 	// Ignore the returned channel - this is a whitebox test.
 	config := memoryless.Config{
-		Min:      time.Duration(1 * time.Hour),
-		Expected: time.Duration(1 * time.Hour),
-		Max:      time.Duration(1 * time.Hour),
+		Min:      1 * time.Hour,
+		Expected: 1 * time.Hour,
+		Max:      1 * time.Hour,
 	}
 	tarCache, _ := New(filename.System(tempdir), "testdata", kv, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	if len(tarCache.currentTarfile) != 0 {
