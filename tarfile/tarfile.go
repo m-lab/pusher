@@ -100,8 +100,7 @@ var (
 // A tarfile represents a single tar file containing data for upload
 type tarfile struct {
 	timeout    *time.Timer
-	members    []osFile
-	memberSet  map[filename.Internal]struct{}
+	members    map[filename.Internal]filename.System
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -129,7 +128,7 @@ func New(subdir filename.System, datatype string, metadata map[string]string) Ta
 		contents:   buffer,
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
-		memberSet:  make(map[filename.Internal]struct{}),
+		members:    make(map[filename.Internal]filename.System),
 		subdir:     subdir,
 		datatype:   datatype,
 		metadata:   metadata,
@@ -147,7 +146,7 @@ type osFile interface {
 // Add adds a single file to the tarfile, and starts a timer if the file is the
 // first file added.
 func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFactory func(string) *time.Timer) {
-	if _, present := t.memberSet[cleanedFilename]; present {
+	if _, present := t.members[cleanedFilename]; present {
 		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype).Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
 		return
@@ -201,8 +200,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 		t.timeout = timerFactory(string(t.subdir))
 	}
 	pusherFilesAdded.WithLabelValues(t.datatype).Inc()
-	t.members = append(t.members, file)
-	t.memberSet[cleanedFilename] = struct{}{}
+	t.members[cleanedFilename] = filename.System(file.Name())
 }
 
 // Upload the contents of the tarfile and then delete the component files. This
@@ -234,16 +232,16 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	)
 	pusherTarfilesUploaded.WithLabelValues(t.datatype).Inc()
 	pusherSuccessTimestamp.WithLabelValues(t.datatype).SetToCurrentTime()
-	for _, file := range t.members {
+	for _, filename := range t.members {
 		// If the file can't be removed, then it either was already removed or the
 		// remove call failed for some unknown reason (permissions, maybe?). If the
 		// file still exists after this attempted remove, then it should eventually
 		// get picked up by the finder.
-		if err := os.Remove(file.Name()); err == nil {
+		if err := os.Remove(string(filename)); err == nil {
 			pusherFilesRemoved.WithLabelValues(t.datatype).Inc()
 		} else {
 			pusherFileRemoveErrors.WithLabelValues(t.datatype).Inc()
-			log.Printf("Failed to remove %v (error: %q)\n", file, err)
+			log.Printf("Failed to remove %v (error: %q)\n", filename, err)
 		}
 	}
 }
