@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/flagx"
+	"github.com/m-lab/go/memoryless"
 
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/rtx"
@@ -112,7 +113,12 @@ func TestEmptyUpload(t *testing.T) {
 	}
 	uploader := fakeUploader{expectedDir: tempdir}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	config := memoryless.Config{
+		Min:      time.Duration(1 * time.Hour),
+		Expected: time.Duration(1 * time.Hour),
+		Max:      time.Duration(1 * time.Hour),
+	}
+	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", make(map[string]string))
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
@@ -141,7 +147,12 @@ func TestUnreadableFile(t *testing.T) {
 	}
 	uploader := fakeUploader{}
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	config := memoryless.Config{
+		Min:      time.Duration(1 * time.Hour),
+		Expected: time.Duration(1 * time.Hour),
+		Max:      time.Duration(1 * time.Hour),
+	}
+	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	// This should not crash, even though the file does not exist.
 	tarCache.add(filename.System(tempdir + "/dne"))
 	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
@@ -176,7 +187,12 @@ func TestAdd(t *testing.T) {
 	kv := &flagx.KeyValue{}
 	rtx.Must(kv.Set("MLAB.testkey=testvalue"), "Could not set key to value")
 	// Ignore the returned channel - this is a whitebox test.
-	tarCache, _ := New(filename.System(tempdir), "testdata", kv, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(1*time.Hour), &uploader)
+	config := memoryless.Config{
+		Min:      time.Duration(1 * time.Hour),
+		Expected: time.Duration(1 * time.Hour),
+		Max:      time.Duration(1 * time.Hour),
+	}
+	tarCache, _ := New(filename.System(tempdir), "testdata", kv, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}

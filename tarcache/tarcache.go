@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/m-lab/go/flagx"
+	"github.com/m-lab/go/memoryless"
+	"github.com/m-lab/go/rtx"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -54,7 +56,7 @@ type TarCache struct {
 	timeoutChannel chan string
 	currentTarfile map[string]tarfile.Tarfile
 	sizeThreshold  bytecount.ByteCount
-	ageThreshold   time.Duration
+	ageThreshold   memoryless.Config
 	rootDirectory  filename.System
 	uploader       uploader.Uploader
 	datatype       string
@@ -63,7 +65,8 @@ type TarCache struct {
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory filename.System, datatype string, metadata *flagx.KeyValue, sizeThreshold bytecount.ByteCount, ageThreshold time.Duration, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
+func New(rootDirectory filename.System, datatype string, metadata *flagx.KeyValue, sizeThreshold bytecount.ByteCount, ageThreshold memoryless.Config, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
+	rtx.Must(ageThreshold.Check(), "Bad config for the ageThreshold")
 	if !strings.HasSuffix(string(rootDirectory), "/") {
 		rootDirectory = filename.System(string(rootDirectory) + "/")
 	}
@@ -142,9 +145,11 @@ func (t *TarCache) uploadAll() {
 
 func (t *TarCache) makeTimer(subdir string) *time.Timer {
 	log.Println("Starting timer for " + subdir)
-	return time.AfterFunc(t.ageThreshold, func() {
+	timer, err := memoryless.AfterFunc(t.ageThreshold, func() {
 		t.timeoutChannel <- subdir
 	})
+	rtx.Must(err, "This config is supposed to be fine - we already checked it in NewTarCache - this should never happen")
+	return timer
 }
 
 // Add adds the contents of a file to the underlying tarfile.  It possibly

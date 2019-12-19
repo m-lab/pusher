@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/uniformnames"
 
@@ -37,7 +38,9 @@ var (
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
 	mlabNodeName    = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.  Only used if node_name is set to \"\".")
 	nodeName        = flag.String("node_name", "", "A unique string to identify the host producing the data.  Will be used in a filename.")
-	ageThreshold    = flag.Duration("file_age_threshold", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it.")
+	ageMin          = flag.Duration("archive_wait_time_min", time.Duration(30)*time.Minute, "The minimum amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
+	ageExpected     = flag.Duration("archive_wait_time_expected", time.Duration(1)*time.Hour, "The expected amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
+	ageMax          = flag.Duration("archive_wait_time_max", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
 	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
@@ -190,7 +193,13 @@ M-Lab uniform naming conventions.
 		rtx.Must(os.MkdirAll(string(datadir), 0666), "Could not create %s", datadir)
 
 		// Set up the file-bundling tarcache system.
-		tc, pusherChannel := tarcache.New(datadir, datatype, &metadata, sizeThreshold, *ageThreshold, uploader)
+		config := memoryless.Config{
+			Min:      *ageMin,
+			Expected: *ageExpected,
+			Max:      *ageMax,
+		}
+		rtx.Must(config.Check(), "Tarfile age configs make no sense.")
+		tc, pusherChannel := tarcache.New(datadir, datatype, &metadata, sizeThreshold, config, uploader)
 		wg.Add(1)
 		go func() {
 			tc.ListenForever(termContext, killContext)

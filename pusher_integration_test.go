@@ -16,6 +16,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/m-lab/go/flagx"
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
@@ -123,7 +124,7 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, 1, memoryless.Config{}, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
@@ -237,7 +238,7 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", &flagx.KeyValue{}, 1, 1, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", &flagx.KeyValue{}, 1, memoryless.Config{}, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
@@ -298,12 +299,17 @@ func TestSignalHandler(t *testing.T) {
 	waitTime := time.Duration(100 * time.Millisecond)
 	var cancel1Time, cancel2Time time.Time
 	var canceled1, canceled2 bool
+	mu := sync.Mutex{}
 	cancel1 := func() {
+		mu.Lock()
+		defer mu.Unlock()
 		canceled1 = true
 		cancel1Time = time.Now()
 		wg.Done()
 	}
 	cancel2 := func() {
+		mu.Lock()
+		defer mu.Unlock()
 		canceled2 = true
 		cancel2Time = time.Now()
 		wg.Done()
@@ -312,9 +318,11 @@ func TestSignalHandler(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // Give the signal handler time to set up
 
 	// Verify that nothing is yet canceled.
+	mu.Lock()
 	if canceled1 || canceled2 {
 		t.Error("Nothing should be canceled yet", canceled1, canceled2)
 	}
+	mu.Unlock()
 
 	// Send the signal
 	p, err := os.FindProcess(os.Getpid())

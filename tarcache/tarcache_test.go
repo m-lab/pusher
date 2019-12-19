@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/memoryless"
+
 	"github.com/m-lab/go/flagx"
 
 	"github.com/m-lab/go/bytecount"
@@ -27,6 +29,12 @@ func (f *fakeUploader) Upload(_ filename.System, _ []byte) error {
 	defer f.mutex.Unlock()
 	f.calls++
 	return nil
+}
+
+func (f *fakeUploader) Calls() int {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	return f.calls
 }
 
 func TestTimer(t *testing.T) {
@@ -50,7 +58,12 @@ func TestTimer(t *testing.T) {
 	ioutil.WriteFile("c/d/tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 
 	uploader := &fakeUploader{}
-	tarCache, channel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), uploader)
+	config := memoryless.Config{
+		Min:      100 * time.Millisecond,
+		Expected: 100 * time.Millisecond,
+		Max:      100 * time.Millisecond,
+	}
+	tarCache, channel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, uploader)
 	// Add the small file, which should not trigger an upload.
 	tinyFile := filename.System("a/b/tinyfile")
 	otherTinyFile := filename.System("c/d/tinyfile")
@@ -58,13 +71,13 @@ func TestTimer(t *testing.T) {
 	go tarCache.ListenForever(ctx, ctx)
 	channel <- tinyFile
 	channel <- otherTinyFile
-	if uploader.calls != 0 {
+	if uploader.Calls() != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Sleep to cause a timeout.
 	time.Sleep(250 * time.Millisecond)
 	// Verify that the timer fired twice - once for each subdirectory.
-	if uploader.calls != 2 {
+	if uploader.Calls() != 2 {
 		t.Error("uploader.calls should be 2 ", uploader.calls)
 	}
 
@@ -72,19 +85,19 @@ func TestTimer(t *testing.T) {
 	uploader.calls = 0
 	// With no files added, the timer should not fire.
 	time.Sleep(time.Duration(250 * time.Millisecond))
-	if uploader.calls != 0 {
+	if uploader.Calls() != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Create a tiny file and add it.
 	ioutil.WriteFile("tiny2", []byte("12345678"), os.FileMode(0666))
 	tiny2File := filename.System("tiny2")
 	channel <- tiny2File
-	if uploader.calls != 0 {
+	if uploader.Calls() != 0 {
 		t.Error("uploader.calls should be zero ", uploader.calls)
 	}
 	// Wait for the timer to fire.
 	time.Sleep(time.Duration(250 * time.Millisecond))
-	if uploader.calls != 1 {
+	if uploader.Calls() != 1 {
 		t.Error("uploader.calls should be one ", uploader.calls)
 	}
 }
@@ -101,7 +114,12 @@ func TestContextCancellation(t *testing.T) {
 
 	// Set up a tarcache with timeouts and bytecounts that ensure it will not fire with a small short test.
 	uploader := fakeUploader{}
-	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Gigabyte), time.Duration(100*time.Hour), &uploader)
+	config := memoryless.Config{
+		Min:      100 * time.Hour,
+		Expected: 100 * time.Hour,
+		Max:      100 * time.Hour,
+	}
+	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Gigabyte), config, &uploader)
 	killCtx, killCancel := context.WithCancel(context.Background())
 	termCtx, termCancel := context.WithCancel(killCtx)
 
@@ -137,7 +155,7 @@ func TestContextCancellation(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify that something has been uploaded in each of the subdirectories
-	if uploader.calls != 2 {
+	if uploader.Calls() != 2 {
 		t.Errorf("Should have uploaded 2 times, not %d", uploader.calls)
 	}
 
@@ -156,14 +174,19 @@ func TestContextCancellation(t *testing.T) {
 	wg.Wait()
 
 	// Verify that one more upload happened.
-	if uploader.calls != 3 {
+	if uploader.Calls() != 3 {
 		t.Errorf("Should have uploaded 3 times in all, not %d", uploader.calls)
 	}
 }
 
 func TestChannelCloseCancellation(t *testing.T) {
 	uploader := fakeUploader{}
-	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), time.Duration(100*time.Millisecond), &uploader)
+	config := memoryless.Config{
+		Min:      100 * time.Millisecond,
+		Expected: 100 * time.Millisecond,
+		Max:      100 * time.Millisecond,
+	}
+	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	ctx := context.Background()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
