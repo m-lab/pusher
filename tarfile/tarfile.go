@@ -197,7 +197,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 	rtx.Must(t.gzipWriter.Flush(), "Could not flush the gzipWriter")
 
 	if len(t.members) == 0 {
-		t.timeout = timerFactory(string(t.subdir))
+		t.timeout = timerFactory(t.datatype + "/" + string(t.subdir))
 	}
 	pusherFilesAdded.WithLabelValues(t.datatype).Inc()
 	t.members[cleanedFilename] = filename.System(file.Name())
