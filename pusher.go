@@ -140,6 +140,7 @@ variable. The name of the experiment and datatypes should conform to the
 M-Lab uniform naming conventions.
 `)
 	}
+	log.SetFlags(log.LUTC | log.Lshortfile | log.LstdFlags)
 	// We want to get flag values from the environment or from the command-line.
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse flags from the environment")

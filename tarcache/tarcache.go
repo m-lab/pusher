@@ -144,7 +144,7 @@ func (t *TarCache) uploadAll() {
 }
 
 func (t *TarCache) makeTimer(subdir string) *time.Timer {
-	log.Println("Starting timer for " + subdir)
+	log.Println("Starting timer for " + t.datatype + "/" + subdir)
 	timer, err := memoryless.AfterFunc(t.ageThreshold, func() {
 		t.timeoutChannel <- subdir
 	})
