@@ -4,10 +4,9 @@ package uploader
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
@@ -56,10 +55,8 @@ func (u *uploader) Upload(directory filename.System, contents []byte) error {
 		if err != nil {
 			msg := fmt.Sprintf("Could not write to gs://%s/%s (%v)", u.bucketName, name, err)
 			if e, ok := err.(*googleapi.Error); ok {
-				if e.Code == http.StatusTooManyRequests || e.Code >= http.StatusInternalServerError {
-					// NOTE: may be verbose.
-					msg += fmt.Sprintf(" googleapi.Error(%#v)", e)
-				}
+				// NOTE: may be verbose.
+				msg += fmt.Sprintf(" googleapi.Error(%#v)", e)
 			}
 			return errors.New(msg)
 		}

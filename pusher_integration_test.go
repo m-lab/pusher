@@ -25,7 +25,7 @@ import (
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
 
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
 )
 
 func TestMainDoesCrashOnEmptyDatatypes(t *testing.T) {
