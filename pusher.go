@@ -13,15 +13,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m-lab/go/memoryless"
-	"github.com/m-lab/go/prometheusx"
-	"github.com/m-lab/go/uniformnames"
-
 	"cloud.google.com/go/storage"
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
+
 	"github.com/m-lab/go/bytecount"
 	"github.com/m-lab/go/flagx"
+	"github.com/m-lab/go/memoryless"
+	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/go/uniformnames"
 
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/finder"

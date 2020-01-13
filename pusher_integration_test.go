@@ -15,17 +15,18 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
+
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
+
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/listener"
 	"github.com/m-lab/pusher/tarcache"
 	"github.com/m-lab/pusher/uploader"
-
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
 )
 
 func TestMainDoesCrashOnEmptyDatatypes(t *testing.T) {

@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
-	"github.com/m-lab/pusher/filename"
-	"github.com/m-lab/pusher/namer"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
 	"golang.org/x/net/context"
 	"google.golang.org/api/googleapi"
+
+	"github.com/m-lab/pusher/filename"
+	"github.com/m-lab/pusher/namer"
 )
 
 // Uploader is an interface for uploading data.

@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
+	"golang.org/x/net/context"
+
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/uploader"
-	"golang.org/x/net/context"
 )
 
 type testNamer struct {
