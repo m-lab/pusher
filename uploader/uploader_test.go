@@ -3,7 +3,6 @@ package uploader_test
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"math/rand"
 	"os/exec"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/uploader"
 	"golang.org/x/net/context"
+	"google.golang.org/api/googleapi"
 )
 
 type testNamer struct {
@@ -116,7 +116,8 @@ func (f *failingWriter) Write(p []byte) (n int, err error) {
 		f.calls++
 		return 1, nil
 	} else {
-		return 0, errors.New("This will fail forever now")
+		err := &googleapi.Error{}
+		return 0, err
 	}
 }
 
