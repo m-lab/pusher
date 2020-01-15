@@ -29,6 +29,12 @@ var (
 	)
 )
 
+func timeOf(f func() error) (time.Duration, error) {
+	start := time.Now()
+	err := f()
+	return time.Since(start), err
+}
+
 // Retry retries calling a function until the function returns a non-nil error.
 // It increments two prometheus counters to keep track of how many errors it has
 // seen: one for all errors, and just when the max error count has been reached.
@@ -36,13 +42,13 @@ var (
 // that maxBackoff > 2*initialBackoff.
 func Retry(f func() error, initialBackoff, maxBackoff time.Duration, label string) {
 	waitTime := initialBackoff
-	for err := f(); err != nil; err = f() {
+	for rt, err := timeOf(f); err != nil; rt, err = timeOf(f) {
 		if waitTime > maxBackoff {
 			pusherMaxRetries.WithLabelValues(label).Inc()
 			ns := maxBackoff.Nanoseconds()
 			waitTime = time.Duration((ns/2)+rand.Int63n(ns/2)) * time.Nanosecond
 		}
-		log.Printf("Call to %s failed (error: %q), will retry after %s", label, err, waitTime.String())
+		log.Printf("Call to %s failed (error: %q) after running for %s, will retry after %s", label, err, rt, waitTime.String())
 		pusherRetries.WithLabelValues(label).Inc()
 		time.Sleep(waitTime)
 		waitTime *= 2
