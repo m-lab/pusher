@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/GoogleCloudPlatform/google-cloud-go-testing/storage/stiface"
+	"github.com/googleapis/google-cloud-go-testing/storage/stiface"
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/namer"
 	"golang.org/x/net/context"
