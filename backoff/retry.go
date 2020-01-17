@@ -31,7 +31,7 @@ var (
 	retryTimes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "pusher_retry_runtime",
-			Help: "The number of bytes in each file the pusher has uploaded",
+			Help: "The number of seconds taken for each retry operation, e.g upload",
 			Buckets: []float64{
 				.1, .15, .25, .4, .6,
 				1, 1.5, 2.5, 4, 6,
