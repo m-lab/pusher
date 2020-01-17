@@ -4,6 +4,7 @@
 package backoff
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"time"
@@ -27,7 +28,28 @@ var (
 		},
 		[]string{"function"},
 	)
+	retryTimes = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "pusher_retry_runtime",
+			Help: "The number of bytes in each file the pusher has uploaded",
+			Buckets: []float64{
+				.1, .15, .25, .4, .6,
+				1, 1.5, 2.5, 4, 6,
+				10, 15, 25, 40, 60,
+				100, 150, 250, 400, 600,
+				1000, 1500, 2500, 4000, 6000},
+		},
+		[]string{"kind", "success"},
+	)
 )
+
+func timeOf(label string, f func() error) (time.Duration, error) {
+	start := time.Now()
+	err := f()
+	delta := time.Since(start)
+	retryTimes.WithLabelValues(label, fmt.Sprintf("%t", err != nil)).Observe(delta.Seconds())
+	return delta, err
+}
 
 // Retry retries calling a function until the function returns a non-nil error.
 // It increments two prometheus counters to keep track of how many errors it has
@@ -36,13 +58,13 @@ var (
 // that maxBackoff > 2*initialBackoff.
 func Retry(f func() error, initialBackoff, maxBackoff time.Duration, label string) {
 	waitTime := initialBackoff
-	for err := f(); err != nil; err = f() {
+	for rt, err := timeOf(label, f); err != nil; rt, err = timeOf(label, f) {
 		if waitTime > maxBackoff {
 			pusherMaxRetries.WithLabelValues(label).Inc()
 			ns := maxBackoff.Nanoseconds()
 			waitTime = time.Duration((ns/2)+rand.Int63n(ns/2)) * time.Nanosecond
 		}
-		log.Printf("Call to %s failed (error: %q), will retry after %s", label, err, waitTime.String())
+		log.Printf("Call to %s failed (error: %q) after running for %s, will retry after %s", label, err, rt, waitTime.String())
 		pusherRetries.WithLabelValues(label).Inc()
 		time.Sleep(waitTime)
 		waitTime *= 2
