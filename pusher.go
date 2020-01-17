@@ -213,7 +213,7 @@ M-Lab uniform naming conventions.
 		go l.ListenForever(ctx)
 
 		// Send very old or missed files to the tarCache as a cleanup precaution.
-		go finder.FindForever(ctx, datadir, *maxFileAge, pusherChannel, *cleanupInterval)
+		go finder.FindForever(ctx, datatype, datadir, *maxFileAge, pusherChannel, *cleanupInterval)
 	}
 
 	// Wait until every TarCache.ListenForever loop has terminated. Once every loop
