@@ -28,7 +28,7 @@ func TestFindForever(t *testing.T) {
 	foundFiles := make(chan filename.System)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go finder.FindForever(ctx, filename.System(tempdir), time.Duration(6)*time.Hour, foundFiles, 1*time.Microsecond)
+	go finder.FindForever(ctx, "test", filename.System(tempdir), time.Duration(6)*time.Hour, foundFiles, 1*time.Microsecond)
 	localfiles := []filename.System{
 		<-foundFiles,
 		<-foundFiles,
@@ -50,7 +50,7 @@ func TestFindForeverNoDirExists(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
 	defer os.RemoveAll(tempdir)
 	rtx.Must(err, "Could not set up temp dir")
-	go finder.FindForever(ctx, "/tmp/dne", time.Duration(time.Millisecond), nil, time.Duration(time.Millisecond))
+	go finder.FindForever(ctx, "dne", "/tmp/dne", time.Duration(time.Millisecond), nil, time.Duration(time.Millisecond))
 	time.Sleep(1 * time.Second)
 	// If the finder doesn't crash on a bad directory, then it's a success.
 }

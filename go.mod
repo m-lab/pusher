@@ -8,6 +8,7 @@ require (
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20191008195207-8e1d251e947d
 	github.com/m-lab/go v1.2.1
 	github.com/prometheus/client_golang v1.3.0
+	github.com/prometheus/prometheus v2.5.0+incompatible // indirect
 	github.com/rjeczalik/notify v0.9.2
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 	golang.org/x/sys v0.0.0-20191220142924-d4481acd189f

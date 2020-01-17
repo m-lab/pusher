@@ -41,11 +41,18 @@ var (
 		Name: "pusher_finder_bytes_found_total",
 		Help: "How many bytes has FindFiles found",
 	})
+	pusherFinderMtimeLowerBound = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "pusher_finder_mtime_lower_bound",
+			Help: "Timestamp of the oldest file discovered by the finder",
+		},
+		[]string{"datatype"},
+	)
 )
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(directory filename.System, minFileAge time.Duration) []filename.System {
+func findFiles(datatype string, directory filename.System, minFileAge time.Duration) []filename.System {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
 	eligibleFiles := make(map[filename.System]os.FileInfo)
@@ -85,6 +92,11 @@ func findFiles(directory filename.System, minFileAge time.Duration) []filename.S
 		jInfo := eligibleFiles[fileList[j]]
 		return iInfo.ModTime().Before(jInfo.ModTime())
 	})
+	if len(fileList) > 0 {
+		pusherFinderMtimeLowerBound.WithLabelValues(datatype).Set(float64(eligibleFiles[fileList[0]].ModTime().Unix()))
+	} else {
+		pusherFinderMtimeLowerBound.WithLabelValues(datatype).SetToCurrentTime()
+	}
 	return fileList
 }
 
@@ -97,11 +109,11 @@ func findFiles(directory filename.System, minFileAge time.Duration) []filename.S
 // IOPs. We use the memoryless library to ensure that the inter-`find` time is
 // the exponential distribution and that the time-distribution of `find`
 // operations is therefore memoryless.
-func FindForever(ctx context.Context, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, datatype string, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, expectedSleepTime time.Duration) {
 	memoryless.Run(
 		ctx,
 		func() {
-			files := findFiles(directory, maxFileAge)
+			files := findFiles(datatype, directory, maxFileAge)
 			for _, file := range files {
 				notificationChannel <- file
 			}
