@@ -109,7 +109,7 @@ func findFiles(datatype string, directory filename.System, minFileAge time.Durat
 // IOPs. We use the memoryless library to ensure that the inter-`find` time is
 // the exponential distribution and that the time-distribution of `find`
 // operations is therefore memoryless.
-func FindForever(ctx context.Context, datatype string, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, expectedSleepTime time.Duration) {
+func FindForever(ctx context.Context, datatype string, directory filename.System, maxFileAge time.Duration, notificationChannel chan<- filename.System, times memoryless.Config) {
 	memoryless.Run(
 		ctx,
 		func() {
@@ -118,5 +118,5 @@ func FindForever(ctx context.Context, datatype string, directory filename.System
 				notificationChannel <- file
 			}
 		},
-		memoryless.Config{Expected: expectedSleepTime})
+		times)
 }
