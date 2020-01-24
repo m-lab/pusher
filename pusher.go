@@ -42,7 +42,8 @@ var (
 	ageExpected     = flag.Duration("archive_wait_time_expected", time.Duration(1)*time.Hour, "The expected amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
 	ageMax          = flag.Duration("archive_wait_time_max", time.Duration(2)*time.Hour, "The maximum amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
 	sizeThreshold   = bytecount.ByteCount(20 * bytecount.Megabyte)
-	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this frequency.")
+	cleanupInterval = flag.Duration("cleanup_interval", time.Duration(1)*time.Hour, "Run the cleanup job with this expected inter-cleanup delay.")
+	cleanupMax      = flag.Duration("cleanup_interval_max", time.Duration(4)*time.Hour, "Run the cleanup job with at most this inter-cleanup delay.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
 	datatypes       = flagx.StringArray{}
@@ -213,7 +214,11 @@ M-Lab uniform naming conventions.
 		go l.ListenForever(ctx)
 
 		// Send very old or missed files to the tarCache as a cleanup precaution.
-		go finder.FindForever(ctx, datatype, datadir, *maxFileAge, pusherChannel, *cleanupInterval)
+		cleanupTimeConfig := memoryless.Config{
+			Expected: *cleanupInterval,
+			Max:      *cleanupMax,
+		}
+		go finder.FindForever(ctx, datatype, datadir, *maxFileAge, pusherChannel, cleanupTimeConfig)
 	}
 
 	// Wait until every TarCache.ListenForever loop has terminated. Once every loop

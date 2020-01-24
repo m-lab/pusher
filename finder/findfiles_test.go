@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/finder"
@@ -28,7 +29,12 @@ func TestFindForever(t *testing.T) {
 	foundFiles := make(chan filename.System)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go finder.FindForever(ctx, "test", filename.System(tempdir), time.Duration(6)*time.Hour, foundFiles, 1*time.Microsecond)
+	c := memoryless.Config{
+		Min:      time.Microsecond,
+		Expected: time.Microsecond,
+		Max:      time.Microsecond,
+	}
+	go finder.FindForever(ctx, "test", filename.System(tempdir), time.Duration(6)*time.Hour, foundFiles, c)
 	localfiles := []filename.System{
 		<-foundFiles,
 		<-foundFiles,
@@ -50,7 +56,12 @@ func TestFindForeverNoDirExists(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "find_file_test")
 	defer os.RemoveAll(tempdir)
 	rtx.Must(err, "Could not set up temp dir")
-	go finder.FindForever(ctx, "dne", "/tmp/dne", time.Duration(time.Millisecond), nil, time.Duration(time.Millisecond))
+	c := memoryless.Config{
+		Min:      time.Millisecond,
+		Expected: time.Millisecond,
+		Max:      time.Millisecond,
+	}
+	go finder.FindForever(ctx, "dne", "/tmp/dne", time.Duration(time.Millisecond), nil, c)
 	time.Sleep(1 * time.Second)
 	// If the finder doesn't crash on a bad directory, then it's a success.
 }
