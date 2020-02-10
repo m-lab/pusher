@@ -114,7 +114,7 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 	client, err := storage.NewClient(ctx)
 	rtx.Must(err, "Could not create cloud storage client")
 	namer := &fakeNamer{fmt.Sprintf("TestListenerTarcacheAndUploader-%d", time.Now().Unix())}
-	up := uploader.Create(ctx, stiface.AdaptClient(client), "archive-mlab-testing", namer)
+	up := uploader.Create(ctx, time.Hour, stiface.AdaptClient(client), "archive-mlab-testing", namer)
 
 	// Set up the TarCache with the uploader
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestListenerTarcacheAndUploader")
@@ -228,7 +228,7 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 	client, err := storage.NewClient(ctx)
 	rtx.Must(err, "Could not create cloud storage client")
 	namer := &fakeNamer{fmt.Sprintf("TestListenerTarcacheAndUploaderWithOneFailure-%d", time.Now().Unix())}
-	up := uploader.Create(ctx, singleErrorClient{realClient: stiface.AdaptClient(client)}, "archive-mlab-testing", namer)
+	up := uploader.Create(ctx, time.Hour, singleErrorClient{realClient: stiface.AdaptClient(client)}, "archive-mlab-testing", namer)
 
 	// Set up the TarCache with the uploader
 	tempdir, err := ioutil.TempDir("/tmp", "pusher_main_test.TestListenerAndUploaderWithOneFailure")

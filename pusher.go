@@ -49,6 +49,7 @@ var (
 	datatypes       = flagx.StringArray{}
 	metadata        = flagx.KeyValue{}
 	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receiving a SIGTERM before we upload everything on an emergency basis.")
+	uploadTimeout   = flag.Duration("upload_timeout", time.Hour, "After how long should we assume that an upload to GCS will never complete?")
 
 	// Create a single unified context and a cancellation method for said context.
 	ctx, cancelCtx = context.WithCancel(context.Background())
@@ -188,7 +189,7 @@ M-Lab uniform naming conventions.
 		client, err := storage.NewClient(ctx)
 		rtx.Must(err, "Could not create cloud storage client")
 
-		uploader := uploader.Create(ctx, stiface.AdaptClient(client), *bucket, namer)
+		uploader := uploader.Create(ctx, *uploadTimeout, stiface.AdaptClient(client), *bucket, namer)
 
 		datadir := filename.System(path.Join(*directory, datatype))
 		// Make the directory (does nothing if the directory already exists)
