@@ -26,6 +26,7 @@ type Uploader interface {
 // interface to aid in whitebox testing.
 type uploader struct {
 	context    context.Context
+	timeout    time.Duration
 	namer      namer.Namer
 	client     stiface.Client
 	bucket     stiface.BucketHandle
@@ -33,11 +34,12 @@ type uploader struct {
 }
 
 // Create and return a new object that implements Uploader.
-func Create(ctx context.Context, client stiface.Client, bucketName string, namer namer.Namer) Uploader {
+func Create(ctx context.Context, timeout time.Duration, client stiface.Client, bucketName string, namer namer.Namer) Uploader {
 	// TODO: add timeouts and error handling to this.
 	bucketHandle := client.Bucket(bucketName)
 	return &uploader{
 		context:    ctx,
+		timeout:    timeout,
 		namer:      namer,
 		client:     client,
 		bucket:     bucketHandle,
@@ -47,9 +49,11 @@ func Create(ctx context.Context, client stiface.Client, bucketName string, namer
 
 // Upload the provided buffer to GCS.
 func (u *uploader) Upload(directory filename.System, contents []byte) error {
+	ctx, cancel := context.WithTimeout(u.context, u.timeout)
+	defer cancel()
 	name := u.namer.ObjectName(directory, time.Now().UTC())
 	object := u.bucket.Object(name)
-	writer := object.NewWriter(u.context)
+	writer := object.NewWriter(ctx)
 	n, err := writer.Write(contents)
 	for n != len(contents) || err != nil {
 		if err != nil {
