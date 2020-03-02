@@ -9,7 +9,7 @@ WORKDIR /go/src/github.com/m-lab/pusher
 # Build pusher and put the git commit hash into the binary.
 RUN go get \
       -v \
-      -ldflags "-X github.com/m-lab/go/prometheusx.GitShortCommit=$(git log -1 --format=%h)" \
+      -ldflags "-X github.com/m-lab/go/prometheusx.GitShortCommit=$(git log -1 --format=%h)$(git diff --quiet || echo dirty)" \
       github.com/m-lab/pusher
 
 # Now copy the built binary into a minimal base image.
