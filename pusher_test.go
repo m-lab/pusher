@@ -10,8 +10,13 @@ func Test_mlabNameToNodeName(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "okay-name",
+			name:     "okay-dotted-name",
 			nodeName: "mlab1.abc0t.measurement-lab.org",
+			want:     "mlab1-abc0t",
+		},
+		{
+			name:     "okay-dashed-name",
+			nodeName: "mlab1-abc0t.measurement-lab.org",
 			want:     "mlab1-abc0t",
 		},
 		{
