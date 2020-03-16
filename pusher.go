@@ -122,7 +122,7 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 // code here for itself.
 func mlabNameToNodeName(nodeName string) (string, error) {
 	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
-	re := regexp.MustCompile(`^(mlab\d)\.([a-z]{3}\d[\dtc])\.measurement-lab\.org$`)
+	re := regexp.MustCompile(`^(mlab\d)\.([a-z]{3}\d[\dtc])`)
 	if !re.MatchString(nodeName) {
 		return "", fmt.Errorf("Bad node name: %s", nodeName)
 	}
