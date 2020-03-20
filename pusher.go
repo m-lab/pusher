@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -37,7 +36,7 @@ var (
 	directory       = flag.String("directory", "/var/spool", "The directory containing one subdirectory per datatype.")
 	bucket          = flag.String("bucket", "pusher-mlab-sandbox", "The GCS bucket to upload data to")
 	experiment      = flag.String("experiment", "exp", "The name of the experiment generating the data")
-	mlabNodeName    = flag.String("mlab_node_name", "mlab5.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab5) and site (abc0t) names.  Only used if node_name is set to \"\".")
+	mlabNodeName    = flag.String("mlab_node_name", "mlab4.abc0t.measurement-lab.org", "FQDN of the M-Lab node. Used to extract machine (mlab4) and site (abc0t) names.  Only used if node_name is set to \"\".")
 	nodeName        = flag.String("node_name", "", "A unique string to identify the host producing the data.  Will be used in a filename.")
 	ageMin          = flag.Duration("archive_wait_time_min", time.Duration(30)*time.Minute, "The minimum amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
 	ageExpected     = flag.Duration("archive_wait_time_expected", time.Duration(1)*time.Hour, "The expected amount of time we should hold onto a piece of data before uploading it (assuming the size threshold is not yet met).")
@@ -122,7 +121,7 @@ func signalHandler(sig os.Signal, termCancel context.CancelFunc, waitTime time.D
 // general tool, but M-Lab wrote Pusher so it gets to put some special-case
 // code here for itself.
 func mlabNameToNodeName(nodeName string) (string, error) {
-	// Extract M-Lab machine (mlab5) and site (abc0t) names from node FQDN (mlab5.abc0t.measurement-lab.org).
+	// Extract M-Lab machine (mlab4) and site (abc0t) names from node FQDN (mlab4.abc0t.measurement-lab.org).
 	h, err := host.Parse(nodeName)
 	if err != nil {
 		return "", fmt.Errorf("Bad node name: %v", err)
