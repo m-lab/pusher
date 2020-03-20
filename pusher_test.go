@@ -16,7 +16,7 @@ func Test_mlabNameToNodeName(t *testing.T) {
 		},
 		{
 			name:     "okay-dashed-name",
-			nodeName: "mlab1-abc0t.measurement-lab.org",
+			nodeName: "mlab1-abc0t.mlab-oti.measurement-lab.org",
 			want:     "mlab1-abc0t",
 		},
 		{
