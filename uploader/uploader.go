@@ -62,6 +62,8 @@ func (u *uploader) Upload(directory filename.System, contents []byte) error {
 				// NOTE: may be verbose.
 				msg += fmt.Sprintf(" googleapi.Error(%#v)", e)
 			}
+			// NOTE: the canceled context given to NewWriter should recover
+			// resources allocated by the writer.
 			return errors.New(msg)
 		}
 		var newWrite int
