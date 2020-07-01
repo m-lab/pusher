@@ -9,7 +9,7 @@ WORKDIR /go/src/github.com/m-lab/pusher
 # Within a development environment, this is a noop. Within an automated
 # Dockerhub build or other CI environment, the provided environment is
 # partial. `git init` allows the following commands to work as intended.
-RUN git init
+RUN git init && git submodule update --init --recursive
 
 # Build pusher and put the git commit hash into the binary.
 RUN go get \
