@@ -6,6 +6,11 @@ ENV CGO_ENABLED 0
 COPY . /go/src/github.com/m-lab/pusher
 WORKDIR /go/src/github.com/m-lab/pusher
 
+# Within a development environment, this is a noop. Within an automated
+# Dockerhub build or other CI environment, the provided environment is
+# partial. `git init` allows the following commands to work as intended.
+RUN git init
+
 # Build pusher and put the git commit hash into the binary.
 RUN go get \
       -v \
