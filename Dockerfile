@@ -9,6 +9,7 @@ WORKDIR /go/src/github.com/m-lab/pusher
 RUN ls -l .git/
 RUN ls -l .git/modules/
 RUN cat .gitmodules
+RUN git init travis
 # Build pusher and put the git commit hash into the binary.
 RUN go get \
       -v \
