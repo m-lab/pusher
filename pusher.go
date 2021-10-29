@@ -185,7 +185,7 @@ M-Lab uniform naming conventions.
 
 	// Seeds math/rand with a unique seed. Without this, rand will return a
 	// predictable pattern of "random" numbers, causing the "memoryless" package
-	// to potentially schedule runs of pusher in unexpected ways. For more
+	// to potentially schedule runs of pusher in unintended ways. For more
 	// background, see this issue:
 	// https://github.com/m-lab/dev-tracker/issues/689
 	rand.Seed(time.Now().UnixNano())
