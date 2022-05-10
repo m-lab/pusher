@@ -15,6 +15,7 @@ package finder
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -52,11 +53,11 @@ var (
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(datatype string, directory filename.System, minFileAge time.Duration) []filename.System {
+func findFiles(datatype string, directory filename.System, maxFileAge time.Duration) []filename.System {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
 	eligibleFiles := make(map[filename.System]os.FileInfo)
-	eligibleTime := time.Now().Add(-minFileAge)
+	eligibleTime := time.Now().Add(-maxFileAge)
 	totalEligibleSize := int64(0)
 
 	err := filepath.Walk(string(directory), func(path string, info os.FileInfo, err error) error {
@@ -64,8 +65,27 @@ func findFiles(datatype string, directory filename.System, minFileAge time.Durat
 			// Any error terminates the walk.
 			return err
 		}
+		// If a directory is older than the maxFileAge, and it is empty, then
+		// remove it. Every existing directory will create an inotify watch.
+		// Over time this can lead to a very large amount of useless watches on
+		// old, empty directories.
 		if info.IsDir() {
-			return nil
+			if eligibleTime.After(info.ModTime()) {
+				f, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				_, err = f.Readdirnames(1)
+				if err == io.EOF {
+					err = os.Remove(path)
+					if err != nil {
+						return err
+					}
+					log.Printf("Removed old, empty directory %s.", path)
+					return nil
+				}
+			}
 		}
 		if eligibleTime.After(info.ModTime()) {
 			eligibleFiles[filename.System(path)] = info
