@@ -1,4 +1,4 @@
-FROM golang:1.13 as build
+FROM golang:1.18 as build
 # Add the local files to be sure we are building the local source code instead
 # of downloading from GitHub.
 # Don't add any of the other libraries, because we live at HEAD.
@@ -13,7 +13,7 @@ RUN go get \
       github.com/m-lab/pusher
 
 # Now copy the built binary into a minimal base image.
-FROM alpine:3.7
+FROM alpine:3.15
 # By default, alpine has no root certs. Add them so pusher can use PKI to
 # verify that Google Cloud Storage is actually Google Cloud Storage.
 RUN apk add --no-cache ca-certificates
