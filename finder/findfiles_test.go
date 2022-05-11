@@ -2,6 +2,8 @@ package finder_test
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -25,6 +27,21 @@ func TestFindForever(t *testing.T) {
 	rtx.Must(ioutil.WriteFile(tempdir+"/next_oldest_file", []byte("moredata\n"), 0644), "WriteFile failed")
 	newtime = time.Now().Add(time.Duration(-12) * time.Hour)
 	rtx.Must(os.Chtimes(tempdir+"/next_oldest_file", newtime, newtime), "Chtimes failed")
+	// Set up the directories.
+	//
+	// An old, empty directory.
+	rtx.Must(os.Mkdir(tempdir+"/old_empty_dir", 0750), "Mkdir failed")
+	newtime = time.Now().Add(time.Duration(-26) * time.Hour)
+	rtx.Must(os.Chtimes(tempdir+"/old_empty_dir", newtime, newtime), "Chtimes failed")
+	// An old directory, but not empty.
+	rtx.Must(os.Mkdir(tempdir+"/old_not_empty_dir", 0750), "Mkdir failed")
+	newtime = time.Now().Add(time.Duration(-30) * time.Hour)
+	rtx.Must(os.Chtimes(tempdir+"/old_not_empty_dir", newtime, newtime), "Chtimes failed")
+	rtx.Must(ioutil.WriteFile(tempdir+"/old_not_empty_dir/test_file", []byte("data\n"), 0644), "WriteFile failed")
+	newtime = time.Now().Add(time.Duration(-27) * time.Hour)
+	rtx.Must(os.Chtimes(tempdir+"/old_not_empty_dir/test_file", newtime, newtime), "Chtimes failed")
+	// A new directory.
+	rtx.Must(os.Mkdir(tempdir+"/new_dir", 0750), "Mkdir failed")
 	// Set up the receiver channel.
 	foundFiles := make(chan filename.System)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -38,15 +55,30 @@ func TestFindForever(t *testing.T) {
 	localfiles := []filename.System{
 		<-foundFiles,
 		<-foundFiles,
+		<-foundFiles,
 	}
-	if len(localfiles) != 2 {
+	// Test files.
+	if len(localfiles) != 3 {
 		t.Errorf("len(localfiles) (%d) != 2", len(localfiles))
 	}
-	if string(localfiles[0]) != tempdir+"/oldest_file" {
-		t.Errorf("wrong name[0]: %s", localfiles[0])
+	if string(localfiles[0]) != tempdir+"/old_not_empty_dir/test_file" {
+		t.Errorf("wrong name[1]: %s", localfiles[0])
 	}
-	if string(localfiles[1]) != tempdir+"/next_oldest_file" {
-		t.Errorf("wrong name[1]: %s", localfiles[1])
+	if string(localfiles[1]) != tempdir+"/oldest_file" {
+		t.Errorf("wrong name[1]: %s", localfiles[0])
+	}
+	if string(localfiles[2]) != tempdir+"/next_oldest_file" {
+		t.Errorf("wrong name[2]: %s", localfiles[1])
+	}
+	// Test directories.
+	if _, err = os.Stat(tempdir + "/old_empty_dir"); errors.Is(err, fs.ErrExist) {
+		t.Errorf("Directory %s/old_empty_dir exists, but shouldn't", tempdir)
+	}
+	if _, err = os.Stat(tempdir + "/old_not_empty_dir"); errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Directory %s/old_not_empty_dir does not exist, but should", tempdir)
+	}
+	if _, err = os.Stat(tempdir + "/new_dir"); errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Directory %s/new_dir does not exist, but should", tempdir)
 	}
 }
 

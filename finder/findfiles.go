@@ -28,6 +28,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// The minimum age of a directory before it will be considered for removal, if
+// it is also empty. 25h should ensure that the current day's directory is never
+// removed prematurely.
+const minDirectoryAge time.Duration = 25 * time.Hour
+
 // Set up the prometheus metrics.
 var (
 	pusherFinderRuns = promauto.NewCounter(prometheus.CounterOpts{
@@ -65,27 +70,10 @@ func findFiles(datatype string, directory filename.System, maxFileAge time.Durat
 			// Any error terminates the walk.
 			return err
 		}
-		// If a directory is older than the maxFileAge, and it is empty, then
-		// remove it. Every existing directory will create an inotify watch.
-		// Over time this can lead to a very large amount of useless watches on
-		// old, empty directories.
+		// Check whether a directory is very old and empty, and removes it if so.
 		if info.IsDir() {
-			if eligibleTime.After(info.ModTime()) {
-				f, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-				_, err = f.Readdirnames(1)
-				if err == io.EOF {
-					err = os.Remove(path)
-					if err != nil {
-						return err
-					}
-					log.Printf("Removed old, empty directory %s.", path)
-					return nil
-				}
-			}
+			err = checkDirectory(datatype, path, info.ModTime())
+			return err
 		}
 		if eligibleTime.After(info.ModTime()) {
 			eligibleFiles[filename.System(path)] = info
@@ -118,6 +106,38 @@ func findFiles(datatype string, directory filename.System, maxFileAge time.Durat
 		pusherFinderMtimeLowerBound.WithLabelValues(datatype).SetToCurrentTime()
 	}
 	return fileList
+}
+
+// checkDirectory checks to see if a directory is sufficiently old and empty.
+// If so, it removes the directory from the filesystem to prevent old, empty
+// directories from piling up in the filesystem.
+func checkDirectory(datatype string, path string, mTime time.Time) error {
+	// Do not delete the root datatype directory.
+	if datatype == filepath.Base(path) {
+		return nil
+	}
+	// Do nothing if the directory if it is less than constant minDirectoryAge.
+	// This could probably be more aggressive.
+	eligibleTime := time.Now().Add(-minDirectoryAge)
+	if mTime.After(eligibleTime) {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		err = os.Remove(path)
+		if err != nil {
+			return err
+		}
+		log.Printf("Removed old, empty directory %s.", path)
+	} else {
+		return err
+	}
+	return nil
 }
 
 // FindForever repeatedly runs FindFiles until its context is canceled.
