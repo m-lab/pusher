@@ -15,6 +15,7 @@ package finder
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -26,6 +27,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+// The minimum age of a directory before it will be considered for removal, if
+// it is also empty. 25h should ensure that the current day's directory is never
+// removed prematurely.
+const minDirectoryAge time.Duration = 25 * time.Hour
 
 // Set up the prometheus metrics.
 var (
@@ -52,11 +58,11 @@ var (
 
 // findFiles recursively searches through a given directory to find all the files which are old enough to be eligible for upload.
 // The list of files returned is sorted by mtime.
-func findFiles(datatype string, directory filename.System, minFileAge time.Duration) []filename.System {
+func findFiles(datatype string, directory filename.System, maxFileAge time.Duration) []filename.System {
 	// Give an initial capacity to the slice. 1024 chosen because it's a nice round number.
 	// TODO: Choose a better default.
 	eligibleFiles := make(map[filename.System]os.FileInfo)
-	eligibleTime := time.Now().Add(-minFileAge)
+	eligibleTime := time.Now().Add(-maxFileAge)
 	totalEligibleSize := int64(0)
 
 	err := filepath.Walk(string(directory), func(path string, info os.FileInfo, err error) error {
@@ -64,8 +70,10 @@ func findFiles(datatype string, directory filename.System, minFileAge time.Durat
 			// Any error terminates the walk.
 			return err
 		}
+		// Check whether a directory is very old and empty, and removes it if so.
 		if info.IsDir() {
-			return nil
+			err = checkDirectory(datatype, path, info.ModTime())
+			return err
 		}
 		if eligibleTime.After(info.ModTime()) {
 			eligibleFiles[filename.System(path)] = info
@@ -98,6 +106,45 @@ func findFiles(datatype string, directory filename.System, minFileAge time.Durat
 		pusherFinderMtimeLowerBound.WithLabelValues(datatype).SetToCurrentTime()
 	}
 	return fileList
+}
+
+// checkDirectory checks to see if a directory is sufficiently old and empty.
+// If so, it removes the directory from the filesystem to prevent old, empty
+// directories from piling up in the filesystem.
+func checkDirectory(datatype string, path string, mTime time.Time) error {
+	// Do not delete the root datatype directory.
+	if datatype == filepath.Base(path) {
+		return nil
+	}
+	// Do nothing if the directory is less than constant minDirectoryAge.  This
+	// could probably be more aggressive.
+	eligibleTime := time.Now().Add(-minDirectoryAge)
+	if mTime.After(eligibleTime) {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	// Read the contents of the directory, looking only as far as the first file
+	// found. We don't care how many files there are, only that at least one
+	// exists. An error of type io.EOF indicates an empty directory.
+	// https://pkg.go.dev/os#File.Readdirnames
+	// https://stackoverflow.com/a/30708914
+	// Implementation note: we are using Readdirnames() instead of Readdir()
+	// because the former does not stat each file, but only returns file names,
+	// which is more efficient for our use case.
+	_, err = f.Readdirnames(1)
+	if err != io.EOF {
+		return err
+	}
+	err = os.Remove(path)
+	if err != nil {
+		return err
+	}
+	log.Printf("Removed old, empty directory %s.", path)
+	return nil
 }
 
 // FindForever repeatedly runs FindFiles until its context is canceled.
