@@ -136,15 +136,14 @@ func checkDirectory(datatype string, path string, mTime time.Time) error {
 	// because the former does not stat each file, but only returns file names,
 	// which is more efficient for our use case.
 	_, err = f.Readdirnames(1)
-	if err == io.EOF {
-		err = os.Remove(path)
-		if err != nil {
-			return err
-		}
-		log.Printf("Removed old, empty directory %s.", path)
-	} else {
+	if err != io.EOF {
 		return err
 	}
+	err = os.Remove(path)
+	if err != nil {
+		return err
+	}
+	log.Printf("Removed old, empty directory %s.", path)
 	return nil
 }
 
