@@ -116,8 +116,8 @@ func checkDirectory(datatype string, path string, mTime time.Time) error {
 	if datatype == filepath.Base(path) {
 		return nil
 	}
-	// Do nothing if the directory if it is less than constant minDirectoryAge.
-	// This could probably be more aggressive.
+	// Do nothing if the directory is less than constant minDirectoryAge.  This
+	// could probably be more aggressive.
 	eligibleTime := time.Now().Add(-minDirectoryAge)
 	if mTime.After(eligibleTime) {
 		return nil
@@ -127,6 +127,14 @@ func checkDirectory(datatype string, path string, mTime time.Time) error {
 		return err
 	}
 	defer f.Close()
+	// Read the contents of the directory, looking only as far as the first file
+	// found. We don't care how many files there are, only that at least one
+	// exists. An error of type io.EOF indicates an empty directory.
+	// https://pkg.go.dev/os#File.Readdirnames
+	// https://stackoverflow.com/a/30708914
+	// Implementation note: we are using Readdirnames() instead of Readdir()
+	// because the former does not stat each file, but only returns file names,
+	// which is more efficient for our use case.
 	_, err = f.Readdirnames(1)
 	if err == io.EOF {
 		err = os.Remove(path)
