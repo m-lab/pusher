@@ -1,13 +1,13 @@
 language: go
 
 go:
-- "1.17"
+- 1.18
 
 services:
 - docker
 
 before_install:
-- go get github.com/mattn/goveralls
+- go install github.com/mattn/goveralls@latest
 - $TRAVIS_BUILD_DIR/travis/install_gcloud.sh
 - source "${HOME}/google-cloud-sdk/path.bash.inc"
 - if [[ -n "$SERVICE_ACCOUNT_mlab_testing" ]] ; then
