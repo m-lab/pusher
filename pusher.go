@@ -200,8 +200,6 @@ M-Lab uniform naming conventions.
 		uploader := uploader.Create(ctx, *uploadTimeout, stiface.AdaptClient(client), *bucket, namer)
 
 		datadir := filename.System(path.Join(*directory, datatype))
-		// Make the directory (does nothing if the directory already exists)
-		rtx.Must(os.MkdirAll(string(datadir), os.ModePerm), "Could not create %s", datadir)
 
 		// Set up the file-bundling tarcache system.
 		config := memoryless.Config{
