@@ -5,7 +5,7 @@ go 1.18
 require (
 	cloud.google.com/go/storage v1.22.0
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720
-	github.com/m-lab/go v0.1.57
+	github.com/m-lab/go v0.1.66
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rjeczalik/notify v0.9.2
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
