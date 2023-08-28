@@ -1,4 +1,4 @@
-FROM golang:1.18 as build
+FROM golang:1.20 as build
 # Add the local files to be sure we are building the local source code instead
 # of downloading from GitHub.
 # Don't add any of the other libraries, because we live at HEAD.
