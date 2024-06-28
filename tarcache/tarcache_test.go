@@ -63,7 +63,7 @@ func TestTimer(t *testing.T) {
 		Expected: 100 * time.Millisecond,
 		Max:      100 * time.Millisecond,
 	}
-	tarCache, channel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, uploader)
+	tarCache, channel := tarcache.New(filename.System(tempdir), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, uploader)
 	// Add the small file, which should not trigger an upload.
 	tinyFile := filename.System("a/b/tinyfile")
 	otherTinyFile := filename.System("c/d/tinyfile")
@@ -119,7 +119,7 @@ func TestContextCancellation(t *testing.T) {
 		Expected: 100 * time.Hour,
 		Max:      100 * time.Hour,
 	}
-	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Gigabyte), config, &uploader)
+	tarCache, fileChan := tarcache.New(filename.System("/tmp"), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Gigabyte), config, &uploader)
 	killCtx, killCancel := context.WithCancel(context.Background())
 	termCtx, termCancel := context.WithCancel(killCtx)
 
@@ -186,7 +186,7 @@ func TestChannelCloseCancellation(t *testing.T) {
 		Expected: 100 * time.Millisecond,
 		Max:      100 * time.Millisecond,
 	}
-	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
+	tarCache, inputChannel := tarcache.New(filename.System("/tmp"), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	ctx := context.Background()
 	go func() {
 		time.Sleep(100 * time.Millisecond)

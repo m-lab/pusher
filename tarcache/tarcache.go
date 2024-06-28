@@ -6,6 +6,7 @@ package tarcache
 import (
 	"context"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -38,12 +39,12 @@ var (
 			Help: "The number of files we have seen with names that looked surprising in some way",
 		},
 		[]string{"datatype"})
-	pusherFileOpenErrors = promauto.NewCounterVec(
+	pusherFilesTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "pusher_file_open_errors_total",
-			Help: "The number of times we could not open a file that we were trying to add to the tarfile",
+			Name: "pusher_files_total",
+			Help: "The number of individual files pusher has handled",
 		},
-		[]string{"datatype"})
+		[]string{"datatype", "status"})
 )
 
 // TarCache contains everything you need to incrementally create a tarfile.
@@ -57,6 +58,7 @@ type TarCache struct {
 	currentTarfile map[string]tarfile.Tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   memoryless.Config
+	filePercentage float64 // Percentage of individual files to be added to the tarcache [0, 1].
 	rootDirectory  filename.System
 	uploader       uploader.Uploader
 	datatype       string
@@ -65,7 +67,7 @@ type TarCache struct {
 
 // New creates a new TarCache object and returns a pointer to it and the
 // channel used to send data to the TarCache.
-func New(rootDirectory filename.System, datatype string, metadata *flagx.KeyValue, sizeThreshold bytecount.ByteCount, ageThreshold memoryless.Config, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
+func New(rootDirectory filename.System, datatype string, pct float64, metadata *flagx.KeyValue, sizeThreshold bytecount.ByteCount, ageThreshold memoryless.Config, uploader uploader.Uploader) (*TarCache, chan<- filename.System) {
 	rtx.Must(ageThreshold.Check(), "Bad config for the ageThreshold")
 	if !strings.HasSuffix(string(rootDirectory), "/") {
 		rootDirectory = filename.System(string(rootDirectory) + "/")
@@ -80,6 +82,7 @@ func New(rootDirectory filename.System, datatype string, metadata *flagx.KeyValu
 		currentTarfile: make(map[string]tarfile.Tarfile),
 		sizeThreshold:  sizeThreshold,
 		ageThreshold:   ageThreshold,
+		filePercentage: pct,
 		uploader:       uploader,
 		datatype:       datatype,
 		metadata:       metadata,
@@ -155,6 +158,11 @@ func (t *TarCache) makeTimer(subdir string) *time.Timer {
 // Add adds the contents of a file to the underlying tarfile.  It possibly
 // calls uploadAndDelete() afterwards.
 func (t *TarCache) add(fname filename.System) {
+	if rand.Float64() >= t.filePercentage {
+		pusherFilesTotal.WithLabelValues(t.datatype, "skipped").Inc()
+		return
+	}
+
 	internalName := fname.Internal(t.rootDirectory)
 	if warning := internalName.Lint(); warning != nil {
 		log.Println("Strange filename encountered:", warning)
@@ -162,7 +170,7 @@ func (t *TarCache) add(fname filename.System) {
 	}
 	file, err := os.Open(string(fname))
 	if err != nil {
-		pusherFileOpenErrors.WithLabelValues(t.datatype).Inc()
+		pusherFilesTotal.WithLabelValues(t.datatype, "errored").Inc()
 		log.Printf("Could not open %s (error: %q)\n", fname, err)
 		return
 	}
@@ -172,6 +180,7 @@ func (t *TarCache) add(fname filename.System) {
 	}
 	tf := t.currentTarfile[subdir]
 	tf.Add(internalName, file, t.makeTimer)
+	pusherFilesTotal.WithLabelValues(t.datatype, "added").Inc()
 	if tf.Size() > t.sizeThreshold {
 		pusherTarfilesUploadCalls.WithLabelValues(t.datatype, "size_threshold_met").Inc()
 		t.uploadAndDelete(subdir)

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -47,7 +48,7 @@ var (
 	cleanupMax      = flag.Duration("cleanup_interval_max", time.Duration(4)*time.Hour, "Run the cleanup job with at most this inter-cleanup delay.")
 	maxFileAge      = flag.Duration("max_file_age", time.Duration(4)*time.Hour, "If a file hasn't been modified in max_file_age, then it should be uploaded.  This is the 'cleanup' upload in case an event was missed.")
 	dryRun          = flag.Bool("dry_run", false, "Start up the binary and then immmediately exit. Useful for verifying that the binary can actually run inside the container.")
-	datatypes       = flagx.StringArray{}
+	datatypes       = flagx.KeyValue{}
 	metadata        = flagx.KeyValue{}
 	sigtermWait     = flag.Duration("sigterm_wait_time", time.Duration(150*time.Second), "How long to wait after receiving a SIGTERM before we upload everything on an emergency basis.")
 	uploadTimeout   = flag.Duration("upload_timeout", time.Hour, "After how long should we assume that an upload to GCS will never complete?")
@@ -63,7 +64,7 @@ func init() {
 	// Set up the size flag with a custom parser.
 	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
 	// Set up the datatype flag with the appropriate parser.
-	flag.Var(&datatypes, "datatype", "The datatype to scrape within the directory. This argument should appear at least once, and may appear multiple times.")
+	flag.Var(&datatypes, "datatype", "Key-value pairs of datatypes to their file percentage. This argument should appear at least once, and may appear multiple times.")
 	// Set up the metadata flag with the appropriate parser
 	flag.Var(&metadata, "metadata", "Key-value pairs to be added to the metadata of each tarfile (flag may be repeated)")
 }
@@ -148,7 +149,7 @@ M-Lab uniform naming conventions.
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse flags from the environment")
 	rtx.Must(uniformnames.Check(*experiment), "Experiment name %q did not conform to the unified naming convention", *experiment)
-	for _, d := range datatypes {
+	for d := range datatypes.Get() {
 		rtx.Must(uniformnames.Check(d), "Datatype name %d did not conform to the unified naming convention", d)
 	}
 	// If no --node_name was set, try using the --mlab_node_name.
@@ -158,7 +159,7 @@ M-Lab uniform naming conventions.
 		rtx.Must(err, "--node_name was empty and --mlab_node_name did not parse correctly.")
 	}
 
-	if len(datatypes) == 0 {
+	if len(datatypes.Get()) == 0 {
 		logFatal("You must specify at least one datatype")
 	}
 
@@ -191,7 +192,9 @@ M-Lab uniform naming conventions.
 	rand.Seed(time.Now().UnixNano())
 
 	// Set up pushing for every datatype.
-	for _, datatype := range datatypes {
+	for datatype, value := range datatypes.Get() {
+		pct, err := strconv.ParseFloat(value, 64)
+		rtx.Must(err, "Failed to parse datatype push percentage")
 		// Set up the upload system.
 		namer := namer.New(datatype, *experiment, *nodeName)
 		client, err := storage.NewClient(ctx)
@@ -208,7 +211,7 @@ M-Lab uniform naming conventions.
 			Max:      *ageMax,
 		}
 		rtx.Must(config.Check(), "Tarfile age configs make no sense.")
-		tc, pusherChannel := tarcache.New(datadir, datatype, &metadata, sizeThreshold, config, uploader)
+		tc, pusherChannel := tarcache.New(datadir, datatype, pct, &metadata, sizeThreshold, config, uploader)
 		wg.Add(1)
 		go func() {
 			tc.ListenForever(termContext, killContext)
