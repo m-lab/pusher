@@ -57,7 +57,6 @@ type TarCache struct {
 	currentTarfile map[string]tarfile.Tarfile
 	sizeThreshold  bytecount.ByteCount
 	ageThreshold   memoryless.Config
-	uploadFile     map[string]bool
 	fileRatio      float64 // Ratio of individual files to be added to the tarcache [0, 1].
 	rootDirectory  filename.System
 	uploader       uploader.Uploader

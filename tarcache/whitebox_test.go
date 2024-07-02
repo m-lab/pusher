@@ -151,6 +151,7 @@ func TestSkipFile(t *testing.T) {
 		Expected: 1 * time.Hour,
 		Max:      1 * time.Hour,
 	}
+	// File ratio = 0 means all files should be skipped.
 	tarCache, _ := New(filename.System(tempdir), "test", 0, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 
 	ioutil.WriteFile(tempdir+"/skipfile", []byte("abcdefgh"), os.FileMode(0666))

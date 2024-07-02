@@ -278,6 +278,8 @@ func (t tarfile) Size() bytecount.ByteCount {
 	return bytecount.ByteCount(t.contents.Len())
 }
 
+// SkippedCount returns the number of files skipped in the tarfile given
+// the datatype's file upload ratio.
 func (t tarfile) SkippedCount() int {
 	return len(t.skipped)
 }
