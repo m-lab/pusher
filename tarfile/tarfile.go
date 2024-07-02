@@ -173,6 +173,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 	// Check if file should be skipped.
 	if rand.Float64() >= t.fileRatio {
 		t.skipped[filename.System(cleanedFilename)] = struct{}{}
+		pusherFilesSkipped.WithLabelValues(t.datatype).Inc()
 		return
 	}
 
