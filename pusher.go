@@ -64,7 +64,7 @@ func init() {
 	// Set up the size flag with a custom parser.
 	flag.Var(&sizeThreshold, "archive_size_threshold", "The minimum tarfile size we require to commence upload (1KB, 200MB, etc). Default is 20MB")
 	// Set up the datatype flag with the appropriate parser.
-	flag.Var(&datatypes, "datatype", "Key-value pairs of datatypes to their file percentage. This argument should appear at least once, and may appear multiple times.")
+	flag.Var(&datatypes, "datatype", "Key-value pairs of datatypes to their file upload ratio. This argument should appear at least once, and may appear multiple times.")
 	// Set up the metadata flag with the appropriate parser
 	flag.Var(&metadata, "metadata", "Key-value pairs to be added to the metadata of each tarfile (flag may be repeated)")
 }
@@ -193,8 +193,8 @@ M-Lab uniform naming conventions.
 
 	// Set up pushing for every datatype.
 	for datatype, value := range datatypes.Get() {
-		pct, err := strconv.ParseFloat(value, 64)
-		rtx.Must(err, "Failed to parse datatype push percentage")
+		ratio, err := strconv.ParseFloat(value, 64)
+		rtx.Must(err, "Failed to parse datatype upload ratio")
 		// Set up the upload system.
 		namer := namer.New(datatype, *experiment, *nodeName)
 		client, err := storage.NewClient(ctx)
@@ -211,7 +211,7 @@ M-Lab uniform naming conventions.
 			Max:      *ageMax,
 		}
 		rtx.Must(config.Check(), "Tarfile age configs make no sense.")
-		tc, pusherChannel := tarcache.New(datadir, datatype, pct, &metadata, sizeThreshold, config, uploader)
+		tc, pusherChannel := tarcache.New(datadir, datatype, ratio, &metadata, sizeThreshold, config, uploader)
 		wg.Add(1)
 		go func() {
 			tc.ListenForever(termContext, killContext)

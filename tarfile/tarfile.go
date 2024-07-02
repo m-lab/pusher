@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 	"github.com/m-lab/pusher/uploader"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+const (
+	addFile  = "add_file"
+	skipFile = "skip_file"
 )
 
 var (
@@ -58,7 +64,7 @@ var (
 			Name: "pusher_tarfiles_duplicates_total",
 			Help: "The number of times we attempted to add a file twice to the same tarfile",
 		},
-		[]string{"datatype"})
+		[]string{"datatype", "condition"})
 	pusherFileReadErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_read_errors_total",
@@ -71,18 +77,24 @@ var (
 			Help: "The number of files we have added to a tarfile",
 		},
 		[]string{"datatype"})
+	pusherFilesSkipped = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pusher_files_skipped_total",
+			Help: "The number of files we have skipped in the tarfile",
+		},
+		[]string{"datatype"})
 	pusherFilesRemoved = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_files_removed_total",
 			Help: "The number of files we have removed from the disk after upload",
 		},
-		[]string{"datatype"})
+		[]string{"datatype", "condition"})
 	pusherFileRemoveErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_file_remove_errors_total",
 			Help: "The number of times the os.Remove call failed",
 		},
-		[]string{"datatype"})
+		[]string{"datatype", "condition"})
 	pusherEmptyUploads = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "pusher_empty_uploads_total",
@@ -101,11 +113,13 @@ var (
 type tarfile struct {
 	timeout    *time.Timer
 	members    map[filename.Internal]filename.System
+	skipped    map[filename.System]struct{}
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
 	subdir     filename.System
 	datatype   string
+	fileRatio  float64
 	metadata   map[string]string
 }
 
@@ -114,10 +128,11 @@ type Tarfile interface {
 	Add(filename.Internal, osFile, func(string) *time.Timer)
 	UploadAndDelete(uploader uploader.Uploader)
 	Size() bytecount.ByteCount
+	SkippedCount() int
 }
 
 // New creates a new tarfile to hold the contents of a particular subdirectory.
-func New(subdir filename.System, datatype string, metadata map[string]string) Tarfile {
+func New(subdir filename.System, datatype string, ratio float64, metadata map[string]string) Tarfile {
 	pusherTarfilesCreated.WithLabelValues(datatype).Inc()
 	// TODO: profile and determine if preallocation is a good idea.
 	buffer := &bytes.Buffer{}
@@ -129,8 +144,10 @@ func New(subdir filename.System, datatype string, metadata map[string]string) Ta
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
 		members:    make(map[filename.Internal]filename.System),
+		skipped:    make(map[filename.System]struct{}),
 		subdir:     subdir,
 		datatype:   datatype,
+		fileRatio:  ratio,
 		metadata:   metadata,
 	}
 }
@@ -146,11 +163,26 @@ type osFile interface {
 // Add adds a single file to the tarfile, and starts a timer if the file is the
 // first file added.
 func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFactory func(string) *time.Timer) {
+	// Check if file has already been skipped.
+	if _, present := t.skipped[filename.System(cleanedFilename)]; present {
+		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype, skipFile).Inc()
+		log.Printf("Not adding %q to the skipped files a second time.\n", cleanedFilename)
+		return
+	}
+
+	// Check if file should be skipped.
+	if rand.Float64() >= t.fileRatio {
+		t.skipped[filename.System(cleanedFilename)] = struct{}{}
+		return
+	}
+
+	// Add file.
 	if _, present := t.members[cleanedFilename]; present {
-		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype).Inc()
+		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype, addFile).Inc()
 		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
 		return
 	}
+
 	fstat, err := file.Stat()
 	if err != nil {
 		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
@@ -207,6 +239,11 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 // function will never return unsuccessfully. If there are files to upload, this
 // method will keep trying until the upload succeeds.
 func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
+	// Delete skipped files.
+	for filename := range t.skipped {
+		t.removeFile(filename, skipFile)
+	}
+
 	if len(t.members) == 0 {
 		pusherEmptyUploads.WithLabelValues(t.datatype).Inc()
 		pusherSuccessTimestamp.WithLabelValues(t.datatype).SetToCurrentTime()
@@ -233,19 +270,27 @@ func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	pusherTarfilesUploaded.WithLabelValues(t.datatype).Inc()
 	pusherSuccessTimestamp.WithLabelValues(t.datatype).SetToCurrentTime()
 	for _, filename := range t.members {
-		// If the file can't be removed, then it either was already removed or the
-		// remove call failed for some unknown reason (permissions, maybe?). If the
-		// file still exists after this attempted remove, then it should eventually
-		// get picked up by the finder.
-		if err := os.Remove(string(filename)); err == nil {
-			pusherFilesRemoved.WithLabelValues(t.datatype).Inc()
-		} else {
-			pusherFileRemoveErrors.WithLabelValues(t.datatype).Inc()
-			log.Printf("Failed to remove %v (error: %q)\n", filename, err)
-		}
+		t.removeFile(filename, addFile)
 	}
 }
 
 func (t tarfile) Size() bytecount.ByteCount {
 	return bytecount.ByteCount(t.contents.Len())
+}
+
+func (t tarfile) SkippedCount() int {
+	return len(t.skipped)
+}
+
+func (t tarfile) removeFile(filename filename.System, condition string) {
+	// If the file can't be removed, then it either was already removed or the
+	// remove call failed for some unknown reason (permissions, maybe?). If the
+	// file still exists after this attempted remove, then it should eventually
+	// get picked up by the finder.
+	if err := os.Remove(string(filename)); err == nil {
+		pusherFilesRemoved.WithLabelValues(t.datatype, condition).Inc()
+	} else {
+		pusherFileRemoveErrors.WithLabelValues(t.datatype, condition).Inc()
+		log.Printf("Failed to remove %s file %v (error: %q)\n", condition, filename, err)
+	}
 }

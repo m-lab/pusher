@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/pusher/filename"
 	"github.com/m-lab/pusher/tarfile"
 )
@@ -46,7 +47,7 @@ func TestAdd(t *testing.T) {
 	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
 	defer os.Chdir(oldDir)
 	timerFactoryCalls = 0
-	tf := tarfile.New("test", "", map[string]string{})
+	tf := tarfile.New("test", "", 1, map[string]string{})
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	if tf.Size() != 0 {
 		t.Errorf("Tarfile size is nonzero before anything is added to it")
@@ -68,8 +69,39 @@ func TestAdd(t *testing.T) {
 		t.Error("Bad files should not increase the size of the tarfile")
 	}
 }
+
+func TestAddSkipped(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "tarfile.TestAdd")
+	testingx.Must(t, err, "Could not create temp dir")
+	defer os.RemoveAll(tmp)
+	oldDir, err := os.Getwd()
+	testingx.Must(t, err, "Could not get working directory")
+	testingx.Must(t, os.Chdir(tmp), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
+
+	// File ratio = 0 means all files should be skipped.
+	tf := tarfile.New("test", "", 0, map[string]string{})
+	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	f, err := os.Open("tinyfile")
+	testingx.Must(t, err, "Could not open tinyfile")
+
+	// Try to add file once.
+	tf.Add("tinyfile", f, nilTimerFactory)
+	if tf.SkippedCount() != 1 {
+		t.Errorf("Skipped count should be 1")
+	}
+	if tf.Size() != 0 {
+		t.Errorf("Skipped files should not increase the size of the tarfile")
+	}
+
+	// Try to add the same file again.
+	tf.Add("tinyfile", f, nilTimerFactory)
+	if tf.SkippedCount() != 1 {
+		t.Errorf("Skipped count should still be 1")
+	}
+}
 func TestUploadAndDeleteOnEmpty(t *testing.T) {
-	tf := tarfile.New("test", "", map[string]string{})
+	tf := tarfile.New("test", "", 1, map[string]string{})
 	tf.UploadAndDelete(nil) // If this doesn't crash, then the test passes.
 }
 
@@ -111,11 +143,33 @@ func TestUploadAndDelete(t *testing.T) {
 	f2, err := os.Open("disappearing")
 	rtx.Must(err, "Could not open file we just wrote")
 	rtx.Must(os.Remove("disappearing"), "Could not delete file")
-	tf := tarfile.New("test", "", map[string]string{})
+	tf := tarfile.New("test", "", 1, map[string]string{})
 	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
 	tf.Add("tinyfile", f, timerFactory)
 	tf.Add("disappearing", f2, timerFactory)
 	tf.UploadAndDelete(&fakeUploader{})
+}
+
+func TestUploadAndDeleteSkipped(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "tarfile.TestUploadAndDelete")
+	rtx.Must(err, "Could not create temp dir")
+	defer os.RemoveAll(tmp)
+	oldDir, err := os.Getwd()
+	rtx.Must(err, "Could not get working directory")
+	rtx.Must(os.Chdir(tmp), "Could not chdir to the tempdir")
+	defer os.Chdir(oldDir)
+	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
+	f, err := os.Open("tinyfile")
+	rtx.Must(err, "Could not open file we just wrote")
+
+	// File ratio = 0 means all files should be skipped.
+	tf := tarfile.New("test", "", 0, map[string]string{})
+	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
+	tf.Add("tinyfile", f, timerFactory)
+	tf.UploadAndDelete(&fakeUploader{})
+	if _, err = os.Open("tinyfile"); err == nil {
+		t.Errorf("File should have been removed and unable to open")
+	}
 }
 
 type uploaderThatSavesLocallyInstead struct {
@@ -138,7 +192,7 @@ func TestTimestampsArePreserved(t *testing.T) {
 	ioutil.WriteFile("tinyfile", []byte("abcdefgh"), os.FileMode(0666))
 	f, err := os.Open("tinyfile")
 	rtx.Must(err, "Could not open file we just wrote")
-	tf := tarfile.New("test", "", map[string]string{})
+	tf := tarfile.New("test", "", 1, map[string]string{})
 	timerFactory := func(string) *time.Timer { return time.NewTimer(time.Hour) }
 	tf.Add("tinyfile", f, timerFactory)
 

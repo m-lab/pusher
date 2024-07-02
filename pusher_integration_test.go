@@ -68,7 +68,7 @@ func TestMainDoesntCrash(t *testing.T) {
 		{"EXPERIMENT", "exp"},
 		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org"},
 		{"MONITORING_ADDRESS", "localhost:9000"},
-		{"DATATYPE", "testdata"},
+		{"DATATYPE", "testdata=1"},
 	}
 	for i := range newVars {
 		revert := osx.MustSetenv(newVars[i].name, newVars[i].value)

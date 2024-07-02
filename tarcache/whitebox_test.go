@@ -119,7 +119,7 @@ func TestEmptyUpload(t *testing.T) {
 		Max:      1 * time.Hour,
 	}
 	tarCache, _ := New(filename.System(tempdir), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
-	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", make(map[string]string))
+	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", 1, make(map[string]string))
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
