@@ -44,7 +44,7 @@ func TestMainDoesCrashOnEmptyDatatypes(t *testing.T) {
 		}
 	}()
 
-	datatypes = []string{}
+	datatypes = flagx.KeyValue{}
 	main()
 }
 
@@ -68,7 +68,7 @@ func TestMainDoesntCrash(t *testing.T) {
 		{"EXPERIMENT", "exp"},
 		{"MLAB_NODE_NAME", "mlab5.abc1t.measurement-lab.org"},
 		{"MONITORING_ADDRESS", "localhost:9000"},
-		{"DATATYPE", "testdata"},
+		{"DATATYPE", "testdata=1"},
 	}
 	for i := range newVars {
 		revert := osx.MustSetenv(newVars[i].name, newVars[i].value)
@@ -124,7 +124,7 @@ func TestListenerTarcacheAndUploader(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", &flagx.KeyValue{}, 1, memoryless.Config{}, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "test", 1, &flagx.KeyValue{}, 1, memoryless.Config{}, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.
@@ -238,7 +238,7 @@ func TestListenerTarcacheAndUploaderWithOneFailure(t *testing.T) {
 		return
 	}
 
-	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", &flagx.KeyValue{}, 1, memoryless.Config{}, up)
+	tarCache, pusherChannel := tarcache.New(filename.System(tempdir), "testdata", 1, &flagx.KeyValue{}, 1, memoryless.Config{}, up)
 	go tarCache.ListenForever(ctx, ctx)
 
 	// Set up the listener on the temp directory.

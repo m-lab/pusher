@@ -35,4 +35,4 @@ script:
       -v `pwd`/fakedata:/var/spool/fakedata
       -v $TRAVIS_BUILD_DIR:/creds
       -e GOOGLE_APPLICATION_CREDENTIALS=/creds/creds.json
-      pushertest --dry_run --directory /var/spool --datatype fakedata
+      pushertest --dry_run --directory /var/spool --datatype fakedata=1

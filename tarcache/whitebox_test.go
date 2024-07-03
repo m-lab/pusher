@@ -118,8 +118,8 @@ func TestEmptyUpload(t *testing.T) {
 		Expected: 1 * time.Hour,
 		Max:      1 * time.Hour,
 	}
-	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
-	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", make(map[string]string))
+	tarCache, _ := New(filename.System(tempdir), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
+	tarCache.currentTarfile[tempdir] = tarfile.New(filename.System(tempdir), "", 1, make(map[string]string))
 	tarCache.uploadAndDelete("this does not exist")
 	tarCache.uploadAndDelete(tempdir)
 	if uploader.calls != 0 {
@@ -138,6 +138,29 @@ func TestEmptyUpload(t *testing.T) {
 	tarCache.uploadAndDelete(tempdir)
 }
 
+func TestSkipFile(t *testing.T) {
+	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestSkipFile")
+	defer os.RemoveAll(tempdir)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	uploader := fakeUploader{}
+	config := memoryless.Config{
+		Min:      1 * time.Hour,
+		Expected: 1 * time.Hour,
+		Max:      1 * time.Hour,
+	}
+	// File ratio = 0 means all files should be skipped.
+	tarCache, _ := New(filename.System(tempdir), "test", 0, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
+
+	ioutil.WriteFile(tempdir+"/skipfile", []byte("abcdefgh"), os.FileMode(0666))
+	tarCache.add(filename.System(tempdir + "/skipfile"))
+	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
+		t.Error("File should not have been added to the tarCache.")
+	}
+}
+
 func TestUnreadableFile(t *testing.T) {
 	tempdir, err := ioutil.TempDir("/tmp", "tarcache.TestUnreadableFile")
 	defer os.RemoveAll(tempdir)
@@ -152,7 +175,7 @@ func TestUnreadableFile(t *testing.T) {
 		Expected: 1 * time.Hour,
 		Max:      1 * time.Hour,
 	}
-	tarCache, _ := New(filename.System(tempdir), "test", &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
+	tarCache, _ := New(filename.System(tempdir), "test", 1, &flagx.KeyValue{}, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	// This should not crash, even though the file does not exist.
 	tarCache.add(filename.System(tempdir + "/dne"))
 	if tf, ok := tarCache.currentTarfile[tempdir]; ok && tf.Size() != 0 {
@@ -192,7 +215,7 @@ func TestAdd(t *testing.T) {
 		Expected: 1 * time.Hour,
 		Max:      1 * time.Hour,
 	}
-	tarCache, _ := New(filename.System(tempdir), "testdata", kv, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
+	tarCache, _ := New(filename.System(tempdir), "testdata", 1, kv, bytecount.ByteCount(1*bytecount.Kilobyte), config, &uploader)
 	if len(tarCache.currentTarfile) != 0 {
 		t.Errorf("The file list should be of zero length and is not (%d != 0)", len(tarCache.currentTarfile))
 	}
