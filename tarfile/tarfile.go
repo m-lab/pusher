@@ -113,7 +113,7 @@ var (
 type tarfile struct {
 	timeout    *time.Timer
 	members    map[filename.Internal]filename.System
-	skipped    map[filename.System]struct{}
+	skipped    map[filename.Internal]filename.System
 	contents   *bytes.Buffer
 	tarWriter  *tar.Writer
 	gzipWriter *gzip.Writer
@@ -144,7 +144,7 @@ func New(subdir filename.System, datatype string, ratio float64, metadata map[st
 		tarWriter:  tarWriter,
 		gzipWriter: gzipWriter,
 		members:    make(map[filename.Internal]filename.System),
-		skipped:    make(map[filename.System]struct{}),
+		skipped:    make(map[filename.Internal]filename.System),
 		subdir:     subdir,
 		datatype:   datatype,
 		fileRatio:  ratio,
@@ -164,7 +164,7 @@ type osFile interface {
 // first file added.
 func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFactory func(string) *time.Timer) {
 	// Check if file has already been skipped.
-	if _, present := t.skipped[filename.System(cleanedFilename)]; present {
+	if _, present := t.skipped[cleanedFilename]; present {
 		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype, skipFile).Inc()
 		log.Printf("Not adding %q to the skipped files a second time.\n", cleanedFilename)
 		return
@@ -172,7 +172,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 
 	// Check if file should be skipped.
 	if rand.Float64() >= t.fileRatio {
-		t.skipped[filename.System(cleanedFilename)] = struct{}{}
+		t.skipped[cleanedFilename] = filename.System(file.Name())
 		pusherFilesSkipped.WithLabelValues(t.datatype).Inc()
 		return
 	}
@@ -241,7 +241,7 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 // method will keep trying until the upload succeeds.
 func (t *tarfile) UploadAndDelete(uploader uploader.Uploader) {
 	// Delete skipped files.
-	for filename := range t.skipped {
+	for _, filename := range t.skipped {
 		t.removeFile(filename, skipFile)
 	}
 
