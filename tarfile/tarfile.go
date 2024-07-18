@@ -170,6 +170,13 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 		return
 	}
 
+	// Check if file has already been added.
+	if _, present := t.members[cleanedFilename]; present {
+		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype, addFile).Inc()
+		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
+		return
+	}
+
 	// Check if file should be skipped.
 	if rand.Float64() >= t.fileRatio {
 		t.skipped[cleanedFilename] = filename.System(file.Name())
@@ -178,12 +185,6 @@ func (t *tarfile) Add(cleanedFilename filename.Internal, file osFile, timerFacto
 	}
 
 	// Add file.
-	if _, present := t.members[cleanedFilename]; present {
-		pusherTarfileDuplicateFiles.WithLabelValues(t.datatype, addFile).Inc()
-		log.Printf("Not adding %q to the tarfile a second time.\n", cleanedFilename)
-		return
-	}
-
 	fstat, err := file.Stat()
 	if err != nil {
 		pusherFileReadErrors.WithLabelValues(t.datatype).Inc()
