@@ -28,7 +28,7 @@ script:
 # good assumption, but one we should note.
 - GCLOUD_PROJECT=mlab-testing
     go test -v -covermode=count -coverprofile=__coverage.cov -coverpkg=./... ./...
-- $HOME/gopath/bin/goveralls -coverprofile=__coverage.cov -service=travis-ci
+- $HOME/gopath/bin/goveralls -coverprofile=__coverage.cov -service=travis-pro
 - docker build -t pushertest .
 - mkdir fakedata;
     docker run
